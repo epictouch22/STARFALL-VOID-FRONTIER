@@ -1,17 +1,20 @@
 {
   "name": "starfall-void-frontier",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run", "test:browser": "node scripts/browser-check.mjs",
-    "check": "npm run test && npm run build"
+    "test": "vitest run",
+    "test:browser": "node scripts/browser-check.mjs",
+    "check": "npm run test && npm run build && node scripts/verify-build.mjs",
+    "format": "prettier --write src tests scripts *.md *.json *.ts *.html .github/workflows/deploy.yml"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",
+    "prettier": "^3.9.9",
     "typescript": "^5.9.3",
     "vite": "^7.1.7",
     "vitest": "^4.1.11"
