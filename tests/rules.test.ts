@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { generateGalaxy, generateSurface } from "../src/world/galaxy";
 import {
-  newGame,
+  legacyGame as newGame,
   shipStats,
   addItem,
   consume,
@@ -187,7 +187,7 @@ describe("save integrity", () => {
     const e = JSON.parse(encode(s));
     e.payload = e.payload.replace("650", "999");
     expect(() => decode(JSON.stringify(e))).toThrow();
-    s.version = 99 as 4;
+    s.version = 99 as 5;
     expect(() => decode(encode(s))).toThrow();
   });
   it("has independent slots and a last good backup", () => {

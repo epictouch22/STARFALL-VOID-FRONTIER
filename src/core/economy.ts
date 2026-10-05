@@ -29,7 +29,7 @@ export function trade(
     s.mode !== "station" ||
     !Number.isInteger(faction) ||
     faction < 0 ||
-    faction > 4 ||
+    faction > 5 ||
     !Number.isInteger(n) ||
     n < 1 ||
     n > 1000
@@ -84,7 +84,9 @@ export function buyUpgrade(s: State, id: string) {
     s.upgrades.includes(id) ||
     s.credits < u.cost ||
     (u.requires && !s.upgrades.includes(u.requires)) ||
-    s.bosses.length < u.region ||
+    (s.physical
+      ? !s.discovered.some((id) => Math.floor(id / 5) >= u.region)
+      : s.bosses.length < u.region) ||
     s.mode !== "station"
   )
     return false;

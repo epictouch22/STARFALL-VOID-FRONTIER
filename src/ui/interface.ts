@@ -31,6 +31,8 @@ import {
   missionTarget,
 } from "../core/economy";
 import { escorts } from "../core/escort";
+import { pendingEncounters, choiceUnavailable } from "../core/encounters";
+import { encounterDefinitions } from "../data/encounters";
 import { slots } from "../save/storage";
 export const esc = (text: unknown) =>
   String(text).replace(
@@ -55,6 +57,7 @@ const tabs = [
   ["ship", "Корабль"],
   ["galaxy", "Карта"],
   ["quests", "Журнал"],
+  ["encounters", "Сигналы"],
   ["tech", "Технологии"],
   ["craft", "Крафт"],
   ["trade", "Рынок"],
@@ -96,7 +99,7 @@ export class Interface {
     this.panel = "";
     document.getElementById("modal")!.hidden = true;
     document.getElementById("landing")!.innerHTML =
-      `<div class="landing-top"><div class="wordmark">STARFALL<span>VOID FRONTIER</span></div><span class="version-tag">SINGLE PLAYER / 01</span></div><div class="landing-layout"><section class="hero"><div class="eyebrow"><span class="status-light"></span> СИГНАЛ С ГРАНИЦЫ ОБНАРУЖЕН</div><h1>STAR<span>FALL</span><small>VOID FRONTIER</small></h1><p class="hero-copy">На краю галактики исчезают корабли.<br>Пустота зовёт вас по имени.</p><p class="hero-detail">Исследуйте звёзды. Восстановите свой корабль.<br>Решите судьбу древней сети.</p><div class="launch-buttons">${slot?.state ? button("Продолжить экспедицию →", "continue", String(this.activeSlot), false, "primary large") : ""}${button(slot?.state ? "Новая экспедиция" : "Начать экспедицию →", "new", String(this.activeSlot), false, slot?.state ? "large" : "primary large")}</div><div class="setup-inputs"><label>ПОЗЫВНОЙ<input id="pilot-name" maxlength="40" value="Пилот" aria-label="Позывной"/></label><label>SEED ГАЛАКТИКИ<input id="world-seed" maxlength="80" value="STARFALL" aria-label="Seed галактики"/></label></div><div class="save-slots">${[0, 1, 2].map((i) => button(`<span class="slot-num">0${i + 1}</span><span>${saved[i]?.state ? esc(saved[i].state!.name) : "Пустой слот"}<small>${saved[i]?.state ? `Глава ${Math.min(5, saved[i].state!.chapter + 1)} / ${Math.round(saved[i].state!.time / 60)} мин` : "НОВАЯ ЭКСПЕДИЦИЯ"}</small></span>`, "slot", String(i), false, this.activeSlot === i ? "selected" : "")).join("")}</div>${button("Импорт сохранения", "import", "", false, "text-button").replace(" disabled", "")}<p class="landing-note">Сохранения остаются в этом браузере. Экспортируйте копию перед очисткой данных.</p></section><aside class="landing-card"><div class="eyebrow">БОРТОВОЙ ЖУРНАЛ / 001</div><h2>Последний<br>выживший.</h2><p>Вы приходите в сознание на повреждённом «Кестрел». Реактор нестабилен. Воздух уходит через шлюз.</p><div class="card-divider"></div><div class="feature-row"><span>25</span><div>ЗВЁЗДНЫХ СИСТЕМ<small>Пять регионов. Один неизвестный сигнал.</small></div></div><div class="feature-row"><span>05</span><div>ГЛАВ КАМПАНИИ<small>Стражи сети ждут вашего прибытия.</small></div></div><div class="feature-row"><span>∞</span><div>ВАША ЭКСПЕДИЦИЯ<small>Добыча, торговля, бой и исследование.</small></div></div><div class="card-footer"><span class="status-light"></span> КЕСТРЕЛ / АВАРИЙНЫЙ РЕЖИМ</div></aside></div><footer class="landing-footer"><span>WASD · E · ПРОБЕЛ / TOUCH CONTROLS</span><span>БЕЗ СЕРВЕРА · БЕЗ РЕГИСТРАЦИИ</span></footer>`;
+      `<div class="landing-top"><div class="wordmark">STARFALL<span>VOID FRONTIER</span></div><span class="version-tag">SINGLE PLAYER / 01</span></div><div class="landing-layout"><section class="hero"><div class="eyebrow"><span class="status-light"></span> СИГНАЛ С ГРАНИЦЫ ОБНАРУЖЕН</div><h1>STAR<span>FALL</span><small>VOID FRONTIER</small></h1><p class="hero-copy">2497 год. Предел живёт между звёздами.<br>Старый корабль. Ваш первый рейс.</p><p class="hero-detail">Почините корабль. Найдите работу и свой путь.<br>У каждой экспедиции — своя история.</p><div class="launch-buttons">${slot?.state ? button("Продолжить экспедицию →", "continue", String(this.activeSlot), false, "primary large") : ""}${button(slot?.state ? "Новая экспедиция" : "Начать экспедицию →", "new", String(this.activeSlot), false, slot?.state ? "large" : "primary large")}</div><div class="setup-inputs"><label>ПОЗЫВНОЙ<input id="pilot-name" maxlength="40" value="Пилот" aria-label="Позывной"/></label><label>SEED ГАЛАКТИКИ<input id="world-seed" maxlength="80" value="STARFALL" aria-label="Seed галактики"/></label></div><div class="save-slots">${[0, 1, 2].map((i) => button(`<span class="slot-num">0${i + 1}</span><span>${saved[i]?.state ? esc(saved[i].state!.name) : "Пустой слот"}<small>${saved[i]?.state ? `Глава ${Math.min(5, saved[i].state!.chapter + 1)} / ${Math.round(saved[i].state!.time / 60)} мин` : "НОВАЯ ЭКСПЕДИЦИЯ"}</small></span>`, "slot", String(i), false, this.activeSlot === i ? "selected" : "")).join("")}</div>${button("Импорт сохранения", "import", "", false, "text-button").replace(" disabled", "")}<p class="landing-note">Сохранения остаются в этом браузере. Экспортируйте копию перед очисткой данных.</p></section><aside class="landing-card"><div class="eyebrow">БОРТОВОЙ ЖУРНАЛ / 001</div><h2>Последний<br>выживший.</h2><p>Ваша регистрация — Freelance Captain. По Конвенции Пустоты капитан отвечает за судно и людей на борту. Сейчас воздух уходит через шлюз, а деньги нужны даже на дорогу до порта.</p><div class="card-divider"></div><div class="feature-row"><span>25</span><div>ЗВЁЗДНЫХ СИСТЕМ<small>Торговые пути, независимые порты и Long Dark.</small></div></div><div class="feature-row"><span>06</span><div>СИЛ ПРЕДЕЛА<small>Содружество, Helix, Лига, Blackwake, Последний Свет и Институт.</small></div></div><div class="feature-row"><span>∞</span><div>ВАША ЭКСПЕДИЦИЯ<small>Добыча, торговля, бой и исследование.</small></div></div><div class="card-footer"><span class="status-light"></span> КЕСТРЕЛ / АВАРИЙНЫЙ РЕЖИМ</div></aside></div><footer class="landing-footer"><span>WASD · E · ПРОБЕЛ / TOUCH CONTROLS</span><span>БЕЗ СЕРВЕРА · БЕЗ РЕГИСТРАЦИИ</span></footer>`;
   }
   start() {
     document.getElementById("landing")!.hidden = true;
@@ -172,6 +175,19 @@ export class Interface {
     ];
     document.getElementById("objective")!.innerHTML =
       `<div class="panel-label">${s.intro < 4 ? "АВАРИЙНЫЙ ПРОТОКОЛ" : "АКТИВНЫЙ СИГНАЛ"} <span>0${Math.min(5, s.chapter + 1)}</span></div><h3>${s.intro < 4 ? "Вернуться к звёздам" : s.chapter >= 5 ? "Судьба Хора" : chapter.name}</h3><p>${esc(s.intro < 4 ? intro[s.intro] : !s.docked ? "Посетите орбитальный порт. Сканируйте контакты и выберите порт для автопилота." : s.chapter >= 5 ? (s.ending ? "Сеть изменилась. Экспедиция продолжается." : "Откройте журнал и примите последнее решение.") : s.evidence.includes(s.chapter) ? `Ключ найден. Вызовите стража «${chapter.boss}» через журнал в космосе.` : `Найдите Архив Хора на планете региона «${regions[s.chapter]}».`)}</p>`;
+    if (s.physical && s.intro >= 4)
+      document.getElementById("objective")!.innerHTML =
+        '<div class="panel-label">2497 / THE REACH</div><h3>Вольный капитан</h3><p>' +
+        esc(
+          !s.docked
+            ? "Найдите порт, приведите корабль в порядок и решите, куда отправиться."
+            : s.ship.hull < 60
+              ? "Кораблю нужен ремонт. Запаситесь деталями перед дальней дорогой."
+              : pendingEncounters(s).length
+                ? "В журнале ждут радиосигналы. Помощь, риск или отказ — ваше решение."
+                : "Зарабатывайте, исследуйте и возвращайтесь домой. Расследование Решётки необязательно.",
+        ) +
+        "</p>";
     const latest = s.logs[0];
     if (latest !== this.lastLog) {
       this.lastLog = latest;
@@ -179,6 +195,10 @@ export class Interface {
         `<span>▥ БОРТОВОЙ КАНАЛ</span><p>${esc(latest)}</p>`;
     }
     document.getElementById("interact-button")!.textContent = contextLabel(s);
+    const journal = document.querySelector<HTMLButtonElement>(
+      '.quick-nav [data-param="quests"]',
+    )!;
+    journal.innerHTML = `≡ <span>Журнал${pendingEncounters(s).length ? ` · ${pendingEncounters(s).length}` : ""}</span>`;
     document.querySelector<HTMLButtonElement>('[data-action="board"]')!.hidden =
       !["space", "eva", "derelict", "surface"].includes(s.mode);
     document.querySelector<HTMLButtonElement>(
@@ -363,7 +383,30 @@ export class Interface {
           .join("")}</div>`;
       }
       case "quests":
-        return `<div class="story-card"><div class="eyebrow">ГЛАВА 0${Math.min(s.chapter + 1, 5)} / ${s.bosses.length} ИЗ 5 СТРАЖЕЙ</div><h3>${chapters[Math.min(s.chapter, 4)].name}</h3><p>${chapters[Math.min(s.chapter, 4)].text}</p><div class="story-steps"><span class="${s.intro >= 4 ? "done" : ""}">✓ Восстановить корабль</span><span class="${s.docked ? "done" : ""}">✓ Посетить станцию</span><span class="${s.evidence.includes(s.chapter) || s.chapter >= 5 ? "done" : ""}">✓ Найти ключ в руинах</span></div>${s.chapter < 5 ? button(`Вызвать стража: ${chapters[s.chapter].boss}`, "boss", "", !s.evidence.includes(s.chapter) || s.mode !== "space" || sys.region !== s.chapter || s.enemies.some((e) => e.boss), "primary") : s.ending ? `<p class="ending-text">${esc(s.codex[s.codex.length - 1])}</p>${button("Продолжить исследование", "close")}` : `<h3>Последний выбор</h3><p>Сеть хранит миллионы сознаний. Ваше решение определит их судьбу.</p><div class="ending-choices">${button("Уничтожить сеть", "ending", "destroy")}${button("Возглавить Хор", "ending", "control")}${button("Передать колонистам", "ending", "colonists")}</div>`}</div>${this.contractsMenu(s)}`;
+        return `${button(`Радиосигналы · ${pendingEncounters(s).length} открытых`, "panel", "encounters")}<div class="story-card"><div class="eyebrow">${s.physical ? "НЕОБЯЗАТЕЛЬНОЕ РАССЛЕДОВАНИЕ / РЕШЁТКА" : `ГЛАВА 0${Math.min(s.chapter + 1, 5)} / ${s.bosses.length} ИЗ 5 СТРАЖЕЙ`}</div><h3>${chapters[Math.min(s.chapter, 4)].name}</h3><p>${chapters[Math.min(s.chapter, 4)].text}</p><div class="story-steps"><span class="${s.intro >= 4 ? "done" : ""}">✓ Восстановить корабль</span><span class="${s.docked ? "done" : ""}">✓ Посетить станцию</span><span class="${s.evidence.includes(s.chapter) || s.chapter >= 5 ? "done" : ""}">✓ Найти ключ в руинах</span></div>${s.chapter < 5 ? button(`Вызвать стража: ${chapters[s.chapter].boss}`, "boss", "", !s.evidence.includes(s.chapter) || s.mode !== "space" || sys.region !== s.chapter || s.enemies.some((e) => e.boss), "primary") : s.ending ? `<p class="ending-text">${esc(s.codex[s.codex.length - 1])}</p>${button("Продолжить исследование", "close")}` : `<h3>Последний выбор</h3><p>Вы получили доступ к локальному узлу. Остальная Решётка остаётся неизвестной. Решение касается только этого объекта.</p><div class="ending-choices">${button("Уничтожить сеть", "ending", "destroy")}${button("Возглавить Хор", "ending", "control")}${button("Передать колонистам", "ending", "colonists")}</div>`}</div>${this.contractsMenu(s)}`;
+      case "encounters":
+        return `<div class="section-intro"><h3>Бортовая связь</h3><p>Сканируйте обломки и аномалии, чтобы принять сигнал. Патруль связывается при первом заходе в порт. Можно закрыть терминал и вернуться позже; выбор сохраняется сразу.</p></div>${
+          s.encounters
+            .filter((e) => e.resolved === null)
+            .map((e) => {
+              const def = encounterDefinitions[e.kind];
+              return `<article class="story-card" data-encounter="${e.id}"><div class="eyebrow">${esc(generateGalaxy(s.seed)[e.system].name)} · ОТКРЫТЫЙ КАНАЛ</div><h3>${def.title}</h3><p>${def.text}</p>${button("К координатам сигнала", "encounterRoute", e.id)}<div class="list">${def.choices
+                .map((c) => {
+                  const reason = choiceUnavailable(s, e, c.id);
+                  return `<div class="list-row"><div><strong>${c.title}</strong><p>${c.description}</p>${reason ? `<small>${reason}</small>` : ""}</div>${button("Ответить", "encounterChoice", `${e.id}|${c.id}`, !!reason)}</div>`;
+                })
+                .join("")}</div></article>`;
+            })
+            .join("") ||
+          '<p class="muted">Открытых сигналов нет. Сканируйте контакты во время путешествия.</p>'
+        }<h3 class="category-label">История решений</h3><div class="codex-entries">${
+          s.encounters
+            .filter((e) => e.resolved !== null)
+            .slice()
+            .reverse()
+            .map((e) => `<article><p>${esc(e.result)}</p></article>`)
+            .join("") || '<p class="muted">Вы ещё не отвечали на сигналы.</p>'
+        }</div>`;
       case "tech":
         return `<div class="section-intro"><h3>Дерево технологий / ${s.upgrades.length} из ${upgrades.length}</h3><p>Покупка и установка доступны на станциях. Ветви открываются последовательно; дальние технологии требуют победы над стражами.</p></div>${[
           ...new Set(upgrades.map((u) => u.category)),
@@ -374,7 +417,7 @@ export class Interface {
                 .filter((u) => u.category === category)
                 .map(
                   (u) =>
-                    `<article class="tech-card ${s.upgrades.includes(u.id) ? "installed" : ""}"><div class="tech-top"><span>${u.region + 1} УРОВЕНЬ</span><b>${s.upgrades.includes(u.id) ? "✓" : "◇"}</b></div><h4>${u.name}</h4><p>${u.description}</p><small>${u.requires ? `Нужно: ${upgrades.find((x) => x.id === u.requires)?.name}` : "Базовая технология"}</small>${button(s.upgrades.includes(u.id) ? "Установлено" : `Установить · ₡ ${u.cost}`, "upgrade", u.id, s.upgrades.includes(u.id) || s.credits < u.cost || s.mode !== "station" || s.bosses.length < u.region || !!(u.requires && !s.upgrades.includes(u.requires)))}</article>`,
+                    `<article class="tech-card ${s.upgrades.includes(u.id) ? "installed" : ""}"><div class="tech-top"><span>${u.region + 1} УРОВЕНЬ</span><b>${s.upgrades.includes(u.id) ? "✓" : "◇"}</b></div><h4>${u.name}</h4><p>${u.description}</p><small>${u.requires ? `Нужно: ${upgrades.find((x) => x.id === u.requires)?.name}` : "Базовая технология"}</small>${button(s.upgrades.includes(u.id) ? "Установлено" : `Установить · ₡ ${u.cost}`, "upgrade", u.id, s.upgrades.includes(u.id) || s.credits < u.cost || s.mode !== "station" || (s.physical ? !s.discovered.some((id) => Math.floor(id / 5) >= u.region) : s.bosses.length < u.region) || !!(u.requires && !s.upgrades.includes(u.requires)))}</article>`,
                 )
                 .join("")}</div>`,
           )
@@ -412,7 +455,23 @@ export class Interface {
             )
             .join("") ||
           "<p>Сканирование и исследование руин автоматически пополняют архив.</p>"
-        }</div><h3 class="category-label">Бортовой журнал</h3><div class="codex-entries">${s.logs.map((entry) => `<article><p>${esc(entry)}</p></article>`).join("")}</div>`;
+        }</div><h3 class="category-label">Бортовой журнал</h3><div class="codex-entries">${s.chronicle
+          .slice()
+          .reverse()
+          .map(
+            (entry) =>
+              `<article><small>День ${1 + Math.floor(entry.time / 1200)} / ${Math.floor(
+                (entry.time % 1200) / 50,
+              )
+                .toString()
+                .padStart(
+                  2,
+                  "0",
+                )}:00 · ${esc(generateGalaxy(s.seed)[entry.system].name)}</small><p>${esc(entry.text)}</p></article>`,
+          )
+          .join(
+            "",
+          )}</div><h3 class="category-label">Последние сообщения</h3><div class="codex-entries">${s.logs.map((entry) => `<article><p>${esc(entry)}</p></article>`).join("")}</div>`;
       case "settings":
         return `<div class="section-intro"><h3>Параметры экспедиции</h3><p>Сохранения локальны для браузера и адреса сайта. Автосохранение каждые 30 секунд и при смене локации. Три независимых слота.</p></div><div class="settings-grid">${[
           ["sfx", "Громкость эффектов", 0, 1, 0.05],
@@ -430,7 +489,7 @@ export class Interface {
             "",
           )}<label class="checkbox"><input type="checkbox" data-setting="mute" ${s.settings.mute ? "checked" : ""}/>Без звука</label><label class="checkbox"><input type="checkbox" data-setting="reduced" ${s.settings.reduced ? "checked" : ""}/>Меньше эффектов</label></div><div class="save-management">${button("Сохранить в текущий слот", "save")}${button("Экспорт JSON", "export")}${button("Импорт JSON", "import")}${button("Главное меню", "menu")}</div><p class="muted">Активный слот: ${s.slot + 1}. Перед выходом игра сохраняется автоматически. Браузер может ограничивать хранилище в приватном режиме.</p>${import.meta.env.DEV ? `<h3>Development tools</h3><div class="save-management">${["heal", "credits", "map", "damage", "boss", "upgrades"].map((id) => button(id, "debug", id)).join("")}</div>` : ""}`;
       case "help":
-        return `<div class="help-grid"><article><h3>Движение и бой</h3><p>WASD / стрелки — движение. Shift — форсаж. X — тормоз. Пробел или правая кнопка мыши — огонь. Мышь задаёт направление выстрела. E — ближайшее действие. R — сканер. G — карта. I — груз. M — медицина. Esc — закрыть меню.</p><p>На телефоне левый стик двигает, правый наводит и стреляет. Крупные кнопки выполняют действия.</p></article><article><h3>Навигация</h3><p>Нажмите на объект в игровом мире или выберите контакт на карте: корабль подлетит сам. Порт требует скорости ниже 45 м/с и носа налево. Автопилот выполняет выравнивание. После остановки нажмите «Стыковка».</p><p>На планете нажмите на ресурс или руины для подхода, затем взаимодействуйте. Для взлёта вернитесь к посадочному модулю.</p></article><article><h3>Выживание</h3><p>Откройте груз, чтобы заправиться, пополнить патроны и кислород. Медицинский сканер позволяет выбрать раненую часть тела. Бинты останавливают кровь, хирургический набор восстанавливает ткани.</p><p>Внутри корабля почините аварийный отсек ремкомплектом. На станции доступно платное полное обслуживание. Если корабль обездвижен без топлива, аварийный маяк вызовет эвакуацию.</p>${button("Аварийная эвакуация", "rescue")}</article><article><h3>Кампания</h3><p>Посетите порт, затем найдите Архив Хора на планете первого региона. В журнале появится вызов стража. Победа открывает следующий регион. Улучшайте корабль между боями. После пятого стража примите решение и продолжайте исследование.</p><p>Корабли восстанавливают щит со временем. Ракеты и рельсотрон помогают пробить поздних боссов. Их атаки ускоряются при потере корпуса.</p></article></div>`;
+        return `<div class="help-grid"><article><h3>Движение и бой</h3><p>WASD / стрелки — движение. Shift — форсаж. X — тормоз. Пробел или правая кнопка мыши — огонь. Мышь задаёт направление выстрела. E — ближайшее действие. R — сканер. G — карта. I — груз. M — медицина. Esc — закрыть меню.</p><p>На телефоне левый стик двигает, правый наводит и стреляет. Крупные кнопки выполняют действия.</p></article><article><h3>Навигация</h3><p>Нажмите на объект в игровом мире или выберите контакт на карте: корабль подлетит сам. Порт требует скорости ниже 45 м/с и носа налево. Автопилот выполняет выравнивание. После остановки нажмите «Стыковка».</p><p>На планете нажмите на ресурс или руины для подхода, затем взаимодействуйте. Для взлёта вернитесь к посадочному модулю.</p></article><article><h3>Выживание</h3><p>Откройте груз, чтобы заправиться, пополнить патроны и кислород. Медицинский сканер позволяет выбрать раненую часть тела. Бинты останавливают кровь, хирургический набор восстанавливает ткани.</p><p>Внутри корабля почините аварийный отсек ремкомплектом. На станции доступно платное полное обслуживание. Если корабль обездвижен без топлива, аварийный маяк вызовет эвакуацию.</p>${button("Аварийная эвакуация", "rescue")}</article><article><h3>Кампания</h3><p>Посетите порт, затем найдите Архив Хора на планете первого региона. В журнале появится вызов стража. Победа открывает следующий регион. Улучшайте корабль между боями. Расследование — один из возможных путей. Зарабатывать, исследовать и жить в Пределе можно без побед над стражами.</p><p>Корабли восстанавливают щит со временем. Ракеты и рельсотрон помогают пробить поздних боссов. Их атаки ускоряются при потере корпуса.</p></article></div>`;
       default:
         return "";
     }

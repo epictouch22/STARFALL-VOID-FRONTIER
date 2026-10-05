@@ -1,4 +1,5 @@
 import type { EscortShip } from "./escort";
+import type { Encounter } from "./encounters";
 export type Mode =
   "interior" | "space" | "surface" | "station" | "eva" | "derelict";
 export type Wound =
@@ -94,7 +95,21 @@ export type Contract = {
   mission: ContractMission | null;
 };
 export type State = {
-  version: 4;
+  version: 5;
+  encounters: Encounter[];
+  physical: boolean;
+  activity: {
+    target: string;
+    mode: Mode;
+    system: number;
+    location: string;
+    x: number;
+    y: number;
+    elapsed: number;
+    duration: number;
+    label: string;
+  } | null;
+  chronicle: { time: number; system: number; text: string }[];
   pack: Record<string, number>;
   quickSlots: string[];
   avatar: {

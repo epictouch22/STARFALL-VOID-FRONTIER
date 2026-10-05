@@ -2,6 +2,7 @@ import type { State, ContractMission, MissionPort } from "../core/types";
 import { newGame } from "../core/state";
 import { items, upgrades, ships } from "../data/catalog";
 import { hash, generateGalaxy } from "../world/galaxy";
+import { encounterDefinitions } from "../data/encounters";
 const key = (slot: number) => `starfall-save-v1-${slot}`;
 export function validateState(value: unknown): value is State {
   try {
@@ -14,7 +15,7 @@ function validate(value: unknown): value is State {
   if (!value || typeof value !== "object") return false;
   const s = value as State,
     template = newGame();
-  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 4)
+  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 5)
     return false;
   const validNum = (n: unknown, min = 0, max = 1e9) =>
     typeof n === "number" && Number.isFinite(n) && n >= min && n <= max;
@@ -247,7 +248,7 @@ function validate(value: unknown): value is State {
     return false;
   if (
     !Array.isArray(s.reputation) ||
-    s.reputation.length !== 5 ||
+    s.reputation.length !== 6 ||
     s.reputation.some((n) => !validNum(n, -100, 100))
   )
     return false;
@@ -284,6 +285,72 @@ function validate(value: unknown): value is State {
         !validMission(q.mission, q.complete, q.type) ||
         typeof q.complete !== "boolean",
     )
+  )
+    return false;
+  if (
+    typeof s.physical !== "boolean" ||
+    !Array.isArray(s.chronicle) ||
+    s.chronicle.length > 1000 ||
+    s.chronicle.some(
+      (e) =>
+        !e ||
+        !str(e.text, 1000) ||
+        !validNum(e.time, 0, s.time) ||
+        !Number.isInteger(e.system) ||
+        !validNum(e.system, 0, 24),
+    )
+  )
+    return false;
+  if (s.activity !== null) {
+    const a = s.activity;
+    if (
+      !s.physical ||
+      !a ||
+      !str(a.target, 100) ||
+      !str(a.label, 150) ||
+      a.mode !== s.mode ||
+      a.system !== s.system ||
+      a.location !== s.location ||
+      ![a.x, a.y].every((n) => validNum(n, -2700, 2700)) ||
+      !validNum(a.duration, 0.1, 10) ||
+      !validNum(a.elapsed, 0, a.duration)
+    )
+      return false;
+  }
+  if (
+    !Array.isArray(s.encounters) ||
+    s.encounters.length > 75 ||
+    new Set(s.encounters.map((e) => e.id)).size !== s.encounters.length ||
+    s.encounters.some((e) => {
+      if (
+        !e ||
+        !["sos", "inspection", "beacon"].includes(e.kind) ||
+        !Number.isInteger(e.system) ||
+        !validNum(e.system, 0, 24) ||
+        e.id !== `${e.kind}:${e.system}` ||
+        ![e.x, e.y].every((n) => validNum(n, -1200, 1200)) ||
+        !validNum(e.started, 0, s.time) ||
+        !str(e.result, 1000)
+      )
+        return true;
+      const kind =
+        e.kind === "sos"
+          ? "derelict"
+          : e.kind === "beacon"
+            ? "anomaly"
+            : "station";
+      const source = generateGalaxy(s.seed)[e.system].contacts.find(
+        (c) => c.kind === kind,
+      )!;
+      if (e.x !== source.x || e.y !== source.y) return true;
+      return e.resolved === null
+        ? e.choice !== "" || e.result !== ""
+        : !validNum(e.resolved, e.started, s.time) ||
+            !e.result ||
+            !encounterDefinitions[e.kind].choices.some(
+              (c) => c.id === e.choice,
+            );
+    })
   )
     return false;
   if (
@@ -351,7 +418,7 @@ export function decode(raw: string): State {
   const e = JSON.parse(raw);
   if (
     e.format !== "STARFALL" ||
-    ![1, 2, 3, 4].includes(e.saveVersion) ||
+    ![1, 2, 3, 4, 5].includes(e.saveVersion) ||
     typeof e.payload !== "string" ||
     hash(e.payload) !== e.checksum
   )
@@ -368,9 +435,22 @@ export function migrate(value: unknown): unknown {
   if (!value || typeof value !== "object")
     throw new Error("Некорректное сохранение");
   const old = value as Record<string, unknown>;
-  if (old.version === 4) return old;
-  if (old.version === 3)
+  if (old.version === 5) return old;
+  if (old.version === 4)
     return {
+      ...old,
+      version: 5,
+      encounters: [],
+      physical: false,
+      activity: null,
+      chronicle: [],
+      reputation:
+        Array.isArray(old.reputation) && old.reputation.length === 5
+          ? [...old.reputation, 0]
+          : old.reputation,
+    };
+  if (old.version === 3)
+    return migrate({
       ...old,
       version: 4,
       contracts: Array.isArray(old.contracts)
@@ -379,7 +459,7 @@ export function migrate(value: unknown): unknown {
             mission: q?.mission ? { ...q.mission, escort: null } : null,
           }))
         : old.contracts,
-    };
+    });
   if (old.version === 2)
     return migrate({
       ...old,

@@ -45,6 +45,7 @@ import { generateGalaxy, generateSurface } from "./world/galaxy";
 import { upgrades } from "./data/catalog";
 import { items } from "./data/catalog";
 import { transfer, unloadResources } from "./core/inventory";
+import { resolveEncounter } from "./core/encounters";
 import type { State } from "./core/types";
 let state: State = newGame(),
   playing = false,
@@ -217,9 +218,31 @@ function action(name: string, param = "") {
     }
     case "scan":
       scan(state);
+      persist();
       if (!state.settings.mute) sound.play("scan", state.settings.sfx);
       ui.toast(state.logs[0]);
       break;
+    case "encounterChoice": {
+      const [id, choice] = param.split("|");
+      if (resolveEncounter(state, id, choice)) persist();
+      ui.toast(state.logs[0]);
+      break;
+    }
+    case "encounterRoute": {
+      const e = state.encounters.find(
+        (e) => e.id === param && e.resolved === null,
+      );
+      if (!e) break;
+      if (e.system !== state.system) {
+        ui.selectedSystem = e.system;
+        open("galaxy");
+      } else if (state.mode === "space") {
+        close();
+        input.controls.target = { x: e.x, y: e.y };
+        input.controls.aim = null;
+      } else ui.toast("Сначала сядьте за штурвал и покиньте порт.");
+      break;
+    }
     case "autopilot": {
       const n = nearest(state);
       if (n) {

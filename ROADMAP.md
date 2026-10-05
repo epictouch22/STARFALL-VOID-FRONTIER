@@ -1,3 +1,7 @@
+# Current roadmap
+
+The user has superseded the short campaign roadmap with MASTER_REWORK.md phases 1–12. Follow REWORK_PLAN.md in order. Preserve existing working loops and saves; every phase must ship a real playable checkpoint. The previous stages below are historical implementation milestones.
+
 # Roadmap
 
 1. Bootstrap, documents, deterministic galaxy, browser saves, repair introduction, flight, surfaces and stations.

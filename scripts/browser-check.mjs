@@ -26,6 +26,7 @@ for (const [name, browserType, options] of [
         .click();
       await page.waitForTimeout(2600);
       await page.locator("#interact-button").click();
+      if (module !== "cockpit") await page.waitForTimeout(4800);
     }
     for (const module of [
       "fabricator",
@@ -45,6 +46,15 @@ for (const [name, browserType, options] of [
     const system = await page.locator("#system-name").innerText();
     if (!system.includes("СТЫКОВКА"))
       throw new Error(`Docking failed: ${system}`);
+    await page.locator('.quick-nav [data-param="quests"]').click();
+    await page.locator('.menu-tabs [data-param="encounters"]').click();
+    await page
+      .locator(
+        '[data-action="encounterChoice"][data-param="inspection:0|declare"]',
+      )
+      .click();
+    await page.screenshot({ path: `test-results/${name}-encounters.png` });
+    await page.locator('.menu-footer [data-action="close"]').click();
     await page.locator('.quick-nav [data-param="inventory"]').click();
     await page.locator('[data-action="use"][data-param="fuel"]').click();
     await page
@@ -85,13 +95,23 @@ for (const [name, browserType, options] of [
       state.intro !== 4 ||
       state.mode !== "station" ||
       state.contracts.length !== 4 ||
-      state.version !== 4
+      state.version !== 5
     )
       throw new Error("Saved progress mismatch");
     await page.reload({ waitUntil: "networkidle" });
     await page.locator('[data-action="continue"]').click();
     if (!(await page.locator("#system-name").innerText()).includes("СТЫКОВКА"))
       throw new Error("Reload lost location");
+    const radioSave = await page.evaluate(() =>
+      JSON.parse(
+        JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
+      ),
+    );
+    if (
+      radioSave.encounters.find((e) => e.id === "inspection:0")?.choice !==
+      "declare"
+    )
+      throw new Error("Encounter decision lost on reload");
     await page.locator('.header-actions [data-action="panel"]').click();
     await page.locator('.menu-tabs [data-param="tech"]').click();
     await page
@@ -164,6 +184,7 @@ for (const [name, browserType, options] of [
     });
     await page.waitForTimeout(3400);
     await page.locator("#interact-button").click();
+    await page.waitForTimeout(6300);
     await page.locator('.header-actions [data-action="save"]').click();
     const surface = await page.evaluate(() =>
       JSON.parse(
@@ -299,6 +320,7 @@ for (const [name, browserType, options] of [
       });
       await page.waitForTimeout(3400);
       await page.locator("#interact-button").click();
+      await page.waitForTimeout(6300);
       await page.locator('[data-action="board"]').click();
       await page.waitForTimeout(4200);
       await page.locator("#interact-button").click();

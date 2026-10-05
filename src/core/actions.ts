@@ -1,6 +1,7 @@
 import { boardDerelict, externalRepair, salvageBoard } from "./boarding";
 import { unloadResources } from "./inventory";
 import { escorts, escortInJumpRange, jumpEscorts } from "./escort";
+import { beginEncounter } from "./encounters";
 import { biomes, chapters, events, items } from "../data/catalog";
 import {
   generateGalaxy,
@@ -9,7 +10,16 @@ import {
   random,
   type Contact,
 } from "../world/galaxy";
-import { addItem, consume, has, healthy, log, shipStats } from "./state";
+import {
+  addItem,
+  consume,
+  has,
+  healthy,
+  log,
+  shipStats,
+  remember,
+  quantity,
+} from "./state";
 import type { State, Enemy } from "./types";
 export const distance = (
   a: { x: number; y: number },
@@ -103,6 +113,8 @@ export const stationPoints = [
   { id: "bar", name: "Бар · архивариус Эхо", x: 0, y: -150 },
 ];
 export function contextLabel(s: State) {
+  if (s.activity)
+    return `${s.activity.label} · ${Math.ceil(s.activity.duration - s.activity.elapsed)} с / отменить`;
   const n = nearest(s);
   if (!n) return "Сканировать";
   const d = distance(s, n);
@@ -165,6 +177,11 @@ export function scan(s: State) {
     .filter((q) => q.type === "survey" && !q.complete)
     .forEach((q) => (q.progress += count));
   log(s, `Сканирование: ${count} новых контактов. Карта обновлена.`);
+  for (const c of contacts(s)) {
+    if (!s.scanned.includes(c.id)) continue;
+    if (c.kind === "derelict") beginEncounter(s, "sos");
+    if (c.kind === "anomaly") beginEncounter(s, "beacon");
+  }
 }
 export function jump(s: State, id: number) {
   if (
@@ -213,6 +230,89 @@ export function jump(s: State, id: number) {
   return true;
 }
 export function interact(s: State): string | undefined {
+  if (!s.physical) return finishInteraction(s);
+  if (s.activity) {
+    s.activity = null;
+    log(s, "Работа прервана. Неиспользованные материалы остались на борту.");
+    return;
+  }
+  const n = nearest(s);
+  if (!n) return;
+  if (
+    ["interior", "surface", "derelict", "eva"].includes(s.mode) &&
+    distance(s, n) > 70
+  ) {
+    log(s, "Подойдите к объекту на 70 м.");
+    return;
+  }
+  let duration = 0,
+    label = "";
+  if (s.mode === "interior" && distance(s, n) <= 70) {
+    const m = s.ship.modules.find((m) => m.id === n.id)!;
+    if (s.intro === 0 && n.id === "fabricator") {
+      duration = 1.8;
+      label = "Собираете инструменты";
+    } else if (
+      (m.breach || m.integrity < 100 || m.fire > 0) &&
+      quantity(s, "parts") > 0
+    ) {
+      duration = 4.5;
+      label = `Ремонт: ${m.name}`;
+    }
+  } else if (
+    s.mode === "surface" &&
+    distance(s, n) <= 70 &&
+    n.id !== `${s.location}-ship`
+  ) {
+    duration = n.id.endsWith("-ruin") ? 6 : 3;
+    label = n.id.endsWith("-ruin") ? "Считываете архив" : "Извлекаете материал";
+  } else if (
+    s.mode === "derelict" &&
+    distance(s, n) <= 70 &&
+    s.enemies.length === 0
+  ) {
+    duration = 5;
+    label = "Проверяете терминал";
+  } else if (s.mode === "eva" && distance(s, n) <= 70) {
+    duration = 5;
+    label = "Герметизация корпуса";
+  }
+  if (!duration) return finishInteraction(s);
+  s.activity = {
+    target: n.id,
+    mode: s.mode,
+    system: s.system,
+    location: s.location,
+    x: n.x,
+    y: n.y,
+    elapsed: 0,
+    duration,
+    label,
+  };
+  log(s, `${label}. Останьтесь рядом до завершения; E отменяет работу.`);
+}
+export function tickInteraction(s: State, dt: number) {
+  const a = s.activity;
+  if (!a) return;
+  if (
+    s.mode !== a.mode ||
+    s.system !== a.system ||
+    s.location !== a.location ||
+    distance(s, a) > 70 ||
+    nearest(s)?.id !== a.target
+  ) {
+    s.activity = null;
+    log(s, "Вы отошли от рабочего места. Работа прервана.");
+    return;
+  }
+  a.elapsed += dt;
+  if (a.elapsed >= a.duration) {
+    s.activity = null;
+    finishInteraction(s);
+    remember(s, s.logs[0]);
+  }
+}
+function finishInteraction(s: State): string | undefined {
   const n = nearest(s);
   if (!n) return;
   const d = distance(s, n);
@@ -351,7 +451,10 @@ export function interact(s: State): string | undefined {
       }
       s.scanned.push(node.id);
       const region = generateGalaxy(s.seed)[s.system].region;
-      if (region === s.chapter && !s.evidence.includes(region)) {
+      if (
+        (s.physical || region === s.chapter) &&
+        !s.evidence.includes(region)
+      ) {
         s.evidence.push(region);
         log(s, chapters[region].reveal);
         s.codex.push(chapters[region].reveal);
@@ -359,7 +462,10 @@ export function interact(s: State): string | undefined {
       addItem(s, "exo", has(s, "ruins") ? 6 : 3);
       s.credits += 250;
       s.depleted[node.id] = node.amount;
-      log(s, "Архив расшифрован. Координаты стража доступны в журнале.");
+      log(
+        s,
+        "Архив содержит неподтверждённые данные. Запись сохранена для расследования.",
+      );
       return;
     }
     const remaining = node.amount - (s.depleted[node.id] ?? 0),
@@ -454,6 +560,7 @@ export function interact(s: State): string | undefined {
       s,
       `Добро пожаловать в ${c.name}. Рынок слева, контракты справа, верфь внизу.`,
     );
+    beginEncounter(s, "inspection");
     return;
   }
   if (c.kind === "derelict") {
@@ -472,12 +579,17 @@ export function interact(s: State): string | undefined {
     return;
   }
   if (!s.depleted[c.id]) {
+    if (
+      !addItem(
+        s,
+        has(s, "collector") ? "anomaly" : "crystal",
+        has(s, "collector") ? 5 : 3,
+      )
+    ) {
+      log(s, "Освободите грузовой отсек перед извлечением материи.");
+      return;
+    }
     s.depleted[c.id] = 1;
-    addItem(
-      s,
-      has(s, "collector") ? "anomaly" : "crystal",
-      has(s, "collector") ? 5 : 3,
-    );
     s.credits += 100;
     s.health.radiation += 8;
     log(s, "Импульс аномалии. Вы извлекли материю, но получили дозу радиации.");
@@ -524,8 +636,13 @@ export function chooseEnding(s: State, choice: string) {
   if (!["destroy", "control", "colonists"].includes(choice)) return false;
   s.ending = choice;
   const rep = s.reputation[2];
-  const text =
-    choice === "destroy"
+  const text = s.physical
+    ? choice === "destroy"
+      ? "Вы изолировали локальный узел Решётки. Переходы в Пределе продолжаются. Что скрывается за WELCOME BACK, всё ещё неизвестно."
+      : choice === "control"
+        ? "Вы оставили локальный узел под собственным наблюдением. Ответов меньше, чем вопросов. Жизнь капитана продолжается."
+        : "Вы передали данные локального узла Лиге Свободного Предела. Совет назначил независимое расследование. Остальная Решётка остаётся загадкой."
+    : choice === "destroy"
       ? "Вы уничтожили Хор. Последние голоса стали звёздным шумом. Галактика снова свободна."
       : choice === "control"
         ? "Вы приняли ключ Архитектора. Отныне ни одно сознание не будет сохранено без согласия."
@@ -541,7 +658,13 @@ export function randomEvent(s: State) {
   const index = Math.floor(rng() * events.length),
     name = events[index];
   log(s, `Событие: ${name}.`);
-  if ([1, 8, 28].includes(index)) {
+  if ([0, 26].includes(index)) {
+    beginEncounter(s, "sos");
+  } else if (index === 8) {
+    beginEncounter(s, "inspection");
+  } else if (index === 27) {
+    beginEncounter(s, "beacon");
+  } else if ([1, 28].includes(index)) {
     const e: Enemy = {
       id: `event-${s.eventIndex}`,
       name: "Перехватчик",
@@ -576,14 +699,7 @@ export function randomEvent(s: State) {
   } else if (index === 24) {
     addItem(s, "medkit", 1);
     addItem(s, "bandage", 2);
-  } else if ([0, 26].includes(index)) {
-    s.credits += 100;
-    s.reputation[2] = Math.min(100, s.reputation[2] + 3);
-    log(
-      s,
-      "Спасательная капсула доставлена в безопасный коридор. +100 кредитов.",
-    );
-  } else if (index === 27 || index === 11) {
+  } else if (index === 11) {
     scan(s);
   } else {
     addItem(s, index === 21 ? "crystal" : index === 25 ? "exo" : "iron", 2);

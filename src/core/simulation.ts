@@ -2,7 +2,13 @@ import { biomes, chapters } from "../data/catalog";
 import type { State, Projectile } from "./types";
 import { addItem, has, log, shipStats } from "./state";
 import { injure, medicalTick } from "./medicine";
-import { currentPlanet, distance, randomEvent, recover } from "./actions";
+import {
+  currentPlanet,
+  distance,
+  randomEvent,
+  recover,
+  tickInteraction,
+} from "./actions";
 import { escorts, tickEscorts, hitEscort } from "./escort";
 export type Controls = {
   mx: number;
@@ -196,6 +202,7 @@ export function tick(s: State, input: Controls, dt: number) {
       diff = Math.atan2(Math.sin(target - s.angle), Math.cos(target - s.angle));
     s.angle += diff * Math.min(1, dt * (has(s, "turn") ? 14 : 8));
   }
+  tickInteraction(s, dt);
   if (has(s, "aim") && s.enemies.length && flying && input.fire) {
     const e = s.enemies
       .slice()

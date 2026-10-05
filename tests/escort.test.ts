@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { newGame } from "../src/core/state";
+import { legacyGame as newGame } from "../src/core/state";
 import {
   acceptContract,
   claimContract,
@@ -151,7 +151,7 @@ it("migrates published v3 sealed cargo without changing weight, destination or p
       checksum: hash(payload),
     }),
   );
-  expect(migrated.version).toBe(4);
+  expect(migrated.version).toBe(5);
   expect(migrated.contracts[0].mission?.escort).toBeNull();
   expect(migrated.contracts[0].mission?.destination).toEqual(
     s.contracts[0].mission?.destination,

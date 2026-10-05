@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { newGame } from "../src/core/state";
+import { legacyGame as newGame } from "../src/core/state";
 import {
   interact,
   contacts,

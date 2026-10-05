@@ -16,3 +16,7 @@ Production base is `/STARFALL-VOID-FRONTIER/`. All media is procedural; Vite emi
 State is intentionally plain JSON. Frame-only pooled particles and input do not enter save files. Fixed-step simulation clamps elapsed time and pauses on backgrounding. `core/inventory.ts` handles capacity and container transfers; `core/boarding.ts` handles derelict entry and salvage. Ship upgrades and classes influence real compartment integrity and capacity. New save versions need explicit migrations and validation.
 
 Mission manifests are separate from disposable item pools and reserve cargo weight/slots. `core/escort.ts` owns saved convoy movement, jump proximity, ambush and hull damage; actions, simulation, renderer and UI share this state. Completed, cancelled and failed objectives cannot reward again.
+
+## Rework foundation
+
+MASTER_REWORK.md supersedes ending-first priorities. `core/encounters.ts` + `data/encounters.ts` own saved choices, preflight atomic capacity and once-only effects. `State.activity` is simulated timed work, cancelled by leaving range; only completion spends parts. `State.chronicle` stores up to 1000 significant results. Save 5 migration initializes new fields and appends Institute reputation; v1 storage keys remain intact. `physical=false` preserves old published saves, while New Game uses physical interactions and optional investigation.

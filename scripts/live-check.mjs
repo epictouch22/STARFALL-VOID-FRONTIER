@@ -56,6 +56,7 @@ for (const [name, type, options] of [
       "ship",
       "galaxy",
       "quests",
+      "encounters",
       "tech",
       "craft",
       "trade",
@@ -76,11 +77,11 @@ for (const [name, type, options] of [
         JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
       ),
     );
-    if (state.version !== 4 || state.intro !== 0)
+    if (state.version !== 5 || state.intro !== 0)
       throw new Error("Published New Game/save version mismatch");
     if (errors.length) throw new Error(errors.join("\n"));
     console.log(
-      `${name}: published New Game, all 12 panels and browser save PASS`,
+      `${name}: published New Game, all 13 panels and browser save PASS`,
     );
   } finally {
     await browser.close();

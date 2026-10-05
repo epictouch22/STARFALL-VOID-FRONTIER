@@ -1,6 +1,13 @@
-# Progress — release 0.4 (2026-10-05)
+# Progress — rework checkpoint 0.5 (2026-10-05)
 
 ## DONE
+
+- New user MASTER REWORK and canonical lore supersede the prior ending-first brief. Full canonical source in LORE_BIBLE.md; original rework in MASTER_REWORK.md. Added STORY_GENERATOR_DESIGN, PHYSICAL_INTERACTION_DESIGN, WORLD_SIMULATION and REWORK_PLAN with KEEP/REWORK/REMOVE audit.
+- Phase 1 foundation: new expeditions have timed, range-bound, cancellable repair/search work. Materials are spent at completion, partial work reloads, and significant results enter a persistent bounded chronicle. Old saves retain legacy interaction behavior.
+- Completed the previous NEXT: SOS / cargo inspection / ancient beacon now have nine real saved choices, costs, cargo checks, reputation, damage, pursuit, secret route consequences and once-only outcomes. Signals are found by actual scan/dock/events; no forced combat overlay.
+- Corrected anomaly extraction consuming the contact before checking cargo capacity. All beacon rewards are checked atomically, including contract cargo reservations.
+- Six canonical factions; new captain HUD focuses on livelihood instead of a compulsory five-boss checklist. New expeditions can acquire technology through exploration; no mandatory boss gate. Network evidence has provenance and uncertainty, and decisions affect a local relay rather than explaining/destroying the whole Lattice.
+- Save 5 migrates formats 1–4 without changing browser keys. Added encounter decisions, physical activity, chronicle and Institute reputation. 15 new unit/integration checks pass (65 total).
 
 - Audited GAME_DESIGN, ARCHITECTURE, ROADMAP, PROGRESS, README, recent commits, actual code and the original brief. QA_AUDIT.md separates implemented loops from missing depth; the entire original brief is not complete.
 - Preserved seeded 25-system / 5-region galaxy, over 60 planets, 10 biomes, 25 ports, 13 outposts, repair introduction, flight physics, scanner, autopilot, docking, landing, mining and archives.
@@ -21,11 +28,12 @@
 
 ## IN PROGRESS
 
-- ROADMAP stage 6: mission depth has expanded; event choices, physical planet interiors and remaining original-brief depth are still development work. No unfinished source changes are intended at the session checkpoint.
+- MASTER_REWORK Phase 2: permission/envelope/sealing/pressure docking, physical airlock/tunnel traversal and generated station rooms. No claim that the full story-generator rework or crew/world simulation is complete.
+- Current production Chromium/WebKit full regression is running; CI must pass before Pages publishes this checkpoint.
 
 ## NEXT
 
-- Implement saved interactive encounter choices for three concrete events: SOS, cargo inspection and ancient beacon. Add data-driven choice definitions and core resolution with actual resource/reputation/damage/route consequences, once-only resolution and atomic capacity handling. Surface a usable encounter panel on PC/iPhone, migrate saves, test pending/declined/resolved states and reload, then typecheck/test/build and push main. Keep existing campaign/mission acceptance passing.
+- Complete physical docking and connected ship/tunnel/station traversal, range-gate services at named staff, add collision-backed rooms and production PC/iPhone acceptance. Then begin actual persistent NPC movement/crew and storyteller threads.
 
 ## KNOWN BUGS
 
@@ -33,27 +41,27 @@
 - Planets have cave/wreck resource nodes, not independent interiors or solid terrain. Weather, distinct fauna AI, moons and surface bases remain absent.
 - Inventory lacks drag-and-drop, world dropped-item containers and equipment slots.
 - Repair contracts are honestly labelled port supply requisitions; physical NPC ship repair, smuggling and evacuation chains remain absent. Escort simulates the active system and pauses with other space combat when the player enters an interior.
-- Events have 32 labels with grouped effects; interactive choices and independent encounters remain incomplete.
+- Three encounter families now have actual saved choices; remaining automatic event families still await the state-aware director and callbacks.
 - Flooding/coolant, detailed wiring/pressure volumes, targeted enemy modules, captured vessels, merchant docking, boss weak points, hidden mini-bosses, legendary equipment and richer faction/NPC histories remain absent.
 - Original content targets (100 items, 20 enemy/weapon variants, 30 quest templates), selectable Explorer/Normal/Survivor difficulty and parts of appearance customization remain unfulfilled. Current seven weapons and compact regional AI work.
 
 ## IMPORTANT ARCHITECTURE
 
 - Read the five project documents and QA_AUDIT.md before further development. Canvas world plus DOM UI; no backend.
-- Save format 4; preserve `starfall-save-v1-*` storage keys, verify checksum before migration and nested data afterwards. Never silently reinterpret accepted legacy contracts.
+- Save format 5; preserve `starfall-save-v1-*` storage keys, verify checksum before migration and nested data afterwards. Never silently reinterpret accepted legacy contracts.
 - Do not change seeded PRNG/IDs without migration. Input, particles and render caches stay out of saves.
 - Mission manifests reserve cargo but never enter disposable item pools. Escorts have their own saved ship state; `core/escort.ts` is wired into jump, simulation, damage, renderer and UI.
 - Pages base: `/STARFALL-VOID-FRONTIER/`. `verify-build.mjs` checks emitted paths/files. Browser acceptance requires production preview port 4173 or GAME_URL.
 
 ## TEST STATUS
 
-- `npm run typecheck`: PASS. `npm test`: 50 tests PASS across five files.
+- `npm run typecheck`: PASS. `npm test`: 65 tests PASS across six files.
 - Earned five-chapter core campaign including physical escort: PASS.
-- Full Chromium production UI campaign with escort: PASS. Full iPhone WebKit production UI campaign with escort: PASS.
+- Previous 0.4 full Chromium/WebKit campaign passed; updated timed-interaction regression is running.
 - Dependency audit: 0 vulnerabilities. Physical iPhone hardware not tested.
 - `scripts/mobile-check.mjs`: WebKit 320×568, 390×664 and 844×390, minimum/maximum settings, visible 44px controls and non-overlapping HUD PASS; included in CI.
 
 ## BUILD STATUS
 
 - Production build and Pages asset verification: PASS. Procedural images/audio need no additional asset paths or backend.
-- Existing deployment workflow retained. Release 0.4 uses this same automatic deployment. `scripts/live-check.mjs` verifies published JS/CSS contents against dist and opens New Game/all 12 panels/saves in Chromium and iPhone WebKit.
+- Existing deployment workflow retained. Rework checkpoints use this same automatic deployment. `scripts/live-check.mjs` verifies published JS/CSS contents against dist and opens New Game/all 13 panels/saves in Chromium and iPhone WebKit.

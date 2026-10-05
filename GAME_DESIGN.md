@@ -1,3 +1,7 @@
+# Current direction: SPACE STORY GENERATOR
+
+The new MASTER_REWORK.md and LORE_BIBLE.md are authoritative. STARFALL is a survival sandbox for a free captain in the Reach (2497). Investigation and legendary threats are optional; long-term systems, people and consequences replace ending-first progression. REWORK_PLAN.md tracks the ordered physical/world rework. The material below describes the preserved earlier foundation.
+
 # STARFALL: VOID FRONTIER
 
 ## Vision

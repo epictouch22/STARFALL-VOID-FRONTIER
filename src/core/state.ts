@@ -23,7 +23,11 @@ export function healthy(): Health {
 }
 export function newGame(seed = "STARFALL", slot = 0, name = "Пилот"): State {
   return {
-    version: 4,
+    version: 5,
+    encounters: [],
+    physical: true,
+    activity: null,
+    chronicle: [],
     pack: { bandage: 2, oxygen: 1 },
     quickSlots: ["fuel", "oxygen", "food", "ammo"],
     avatar: {
@@ -131,7 +135,7 @@ export function newGame(seed = "STARFALL", slot = 0, name = "Пилот"): State
     scanned: [],
     depleted: {},
     upgrades: [],
-    reputation: [0, 0, 15, -15, -10],
+    reputation: [0, 0, 15, -15, -10, 0],
     contracts: [],
     kills: [],
     bosses: [],
@@ -220,4 +224,11 @@ export function consume(s: State, id: string, n = 1) {
 export function log(s: State, message: string) {
   s.logs.unshift(message);
   s.logs = s.logs.slice(0, 40);
+}
+export function legacyGame(seed = "STARFALL", slot = 0, name = "Пилот"): State {
+  return { ...newGame(seed, slot, name), physical: false };
+}
+export function remember(s: State, text: string) {
+  s.chronicle.push({ time: s.time, system: s.system, text });
+  s.chronicle = s.chronicle.slice(-1000);
 }
