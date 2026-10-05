@@ -128,6 +128,16 @@ export class Interface {
       "--ui-scale",
       String(s.settings.uiScale),
     );
+    // Keep both HUD columns within narrow screens; apply scale once to text.
+    document.documentElement.style.setProperty(
+      "--hud-scale",
+      String(
+        Math.min(
+          s.settings.uiScale,
+          window.innerWidth < 700 ? (window.innerWidth - 36) / 303 : 1.5,
+        ),
+      ),
+    );
     document.documentElement.style.setProperty(
       "--stick-size",
       Math.min(

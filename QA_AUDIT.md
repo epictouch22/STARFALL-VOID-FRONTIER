@@ -45,3 +45,5 @@ Unit fixtures configure states to isolate mechanics and do not prove normal prog
 Additional combat audit fixes: adaptive shielding now reduces shield charge consumption without leaking absorbed hits into hull; boarding/ground kills no longer count as ship bounties. Paid station service fully restores installed shields.
 
 Release 0.4 also fixes two inventory QA findings: recycling rolls back when material does not fit, and full reserves no longer consume supplies. Content counts, selectable difficulty and some appearance controls from the original brief remain unfulfilled.
+
+Settings stress QA found overlapping HUD columns at maximum scale and a menu button only 31px wide. The HUD now scales once and clamps to the available width; the button has a 44px minimum. WebKit portrait/landscape checks at minimum/maximum settings guard this in CI.

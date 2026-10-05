@@ -408,7 +408,8 @@ strong {
   gap: 8px;
 }
 .header-actions button {
-  min-height: 42px;
+  min-height: 44px;
+  min-width: 44px;
   font-size: 12px;
 }
 .hud-header #system-name {
@@ -437,7 +438,7 @@ strong {
   border: 1px solid #35485b66;
   background: #0c1729c9;
   padding: 17px;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: 12px;
   pointer-events: none;
 }
 .panel-label {
@@ -1737,11 +1738,11 @@ strong {
   }
 }
 #telemetry {
-  transform: scale(var(--ui-scale));
+  transform: scale(var(--hud-scale, 1));
   transform-origin: top left;
 }
 #objective {
-  transform: scale(var(--ui-scale));
+  transform: scale(var(--hud-scale, 1));
   transform-origin: top right;
 }
 @media (pointer: coarse) {
@@ -1751,10 +1752,16 @@ strong {
 }
 @media (max-width: 700px) {
   #radio {
-    top: 220px;
+    top: calc(80px + 140px * var(--hud-scale, 1));
     bottom: auto;
     width: 158px;
     max-height: 82px;
+    overflow: hidden;
+  }
+  #objective p {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
     overflow: hidden;
   }
 }

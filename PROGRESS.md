@@ -12,6 +12,7 @@
 - Save format 4 migrates published formats 1/2/3. Legacy accepted deliveries retain original terms; active v3 freight retains destinations, manifests and progress. Existing browser storage keys remain unchanged.
 - Fixed reversed sale reputation, overloaded ship downsizing, suit-quantity buttons, one-frame stimulant duration, unsafe nested-save validation, adaptive shield damage leaking into hull, ground kills counting as ship bounties, and station service omitting shield recharge.
 - Fixed destructive recycling when output does not fit and wasteful use of full fuel/oxygen/food/hull reserves. Iron recycling button is explicitly unavailable.
+- Additional mobile QA fixed a 31px menu button and overlapping HUD at maximum scale. HUD scales once and fits narrow screens; all tested touch targets are at least 44px.
 - Added an earned full-campaign integration test: actual repair/movement/actions, convoy trip, paid equipment, all five projectile bosses, save/reload between chapters, ending and further travel. No money/health/unlock/position/boss-HP injection.
 - Extended production browser acceptance from New Game through delivery/passengers/escort, reload, earned equipment, all five bosses, ending, reload and free play. Runtime save data is read only for assertions/aiming; no debug or save mutation.
 - Stable milestones already pushed: 431fe62 (routed missions) and 195a41f (full campaign/combat QA). Both deployed successfully; Actions runs 37279171439 and 37280367040 passed.
@@ -50,6 +51,7 @@
 - Earned five-chapter core campaign including physical escort: PASS.
 - Full Chromium production UI campaign with escort: PASS. Full iPhone WebKit production UI campaign with escort: PASS.
 - Dependency audit: 0 vulnerabilities. Physical iPhone hardware not tested.
+- `scripts/mobile-check.mjs`: WebKit 320×568, 390×664 and 844×390, minimum/maximum settings, visible 44px controls and non-overlapping HUD PASS; included in CI.
 
 ## BUILD STATUS
 
