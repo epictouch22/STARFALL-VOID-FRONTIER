@@ -187,7 +187,7 @@ describe("save integrity", () => {
     const e = JSON.parse(encode(s));
     e.payload = e.payload.replace("650", "999");
     expect(() => decode(JSON.stringify(e))).toThrow();
-    s.version = 99 as 5;
+    s.version = 99 as 6;
     expect(() => decode(encode(s))).toThrow();
   });
   it("has independent slots and a last good backup", () => {

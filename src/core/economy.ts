@@ -10,11 +10,16 @@ import {
 } from "./state";
 import type { State, Contract } from "./types";
 import { generateGalaxy } from "../world/galaxy";
+import { serviceAvailable, activeResidents } from "./residents";
 import { reservedCargo, inventorySlots } from "./inventory";
 export function price(s: State, id: string, selling = false, faction = 0) {
   const base = items[id]?.price ?? 0;
+  const personal = s.physical
+    ? (activeResidents(s).find((n) => n.role === "trade")?.opinion ?? 0)
+    : 0;
   const local = 1 + Math.sin(s.system * 7 + id.length * 3) * 0.25;
-  const rep = 1 + s.reputation[faction] * (selling ? 0.002 : -0.002);
+  const rep =
+    1 + (s.reputation[faction] + personal * 0.5) * (selling ? 0.002 : -0.002);
   return Math.max(1, Math.round(base * local * rep * (selling ? 0.65 : 1)));
 }
 export function trade(
@@ -26,7 +31,7 @@ export function trade(
 ) {
   if (
     !items[id] ||
-    s.mode !== "station" ||
+    !serviceAvailable(s, "trade") ||
     !Number.isInteger(faction) ||
     faction < 0 ||
     faction > 5 ||
@@ -87,7 +92,7 @@ export function buyUpgrade(s: State, id: string) {
     (s.physical
       ? !s.discovered.some((id) => Math.floor(id / 5) >= u.region)
       : s.bosses.length < u.region) ||
-    s.mode !== "station"
+    !serviceAvailable(s, "tech")
   )
     return false;
   s.credits -= u.cost;
@@ -101,7 +106,7 @@ export function buyShip(s: State, id: string) {
   const ship = ships.find((x) => x.id === id);
   if (
     !ship ||
-    s.mode !== "station" ||
+    !serviceAvailable(s, "tech") ||
     s.credits < ship.cost ||
     s.ship.class === id ||
     weight(s) > shipStats({ ...s, ship: { ...s.ship, class: id } }).cargo
@@ -129,7 +134,30 @@ export function buyShip(s: State, id: string) {
   return true;
 }
 export function serviceShip(s: State) {
-  if (s.mode !== "station" || s.credits < 180) return false;
+  if (!serviceAvailable(s, "tech") || s.credits < 180) return false;
+  if (s.physical) {
+    if (
+      s.maintenance ||
+      s.docking.phase !== "ready" ||
+      !s.docking.shipDoor ||
+      !s.docking.stationDoor
+    )
+      return false;
+    const n = activeResidents(s).find((n) => n.role === "tech")!;
+    s.credits -= 180;
+    s.maintenance = {
+      port: s.location,
+      worker: n.id,
+      phase: "walking",
+      progress: 0,
+      duration: s.ship.modules.length * 4,
+    };
+    log(
+      s,
+      `${n.name} принял заказ. Оставьте обе двери открытыми: инженер идёт на корабль. Ремонт займёт время у каждого отсека.`,
+    );
+    return true;
+  }
   s.credits -= 180;
   const stats = shipStats(s);
   s.ship.hull = stats.hull;
@@ -353,7 +381,7 @@ export function canAcceptContract(s: State, q: Contract) {
   )
     return false;
   if (
-    s.mode !== "station" ||
+    !serviceAvailable(s, "contracts") ||
     s.contracts.length >= 300 ||
     s.contracts.some((c) => c.id === q.id)
   )
@@ -393,7 +421,7 @@ export function acceptContract(s: State, id: string) {
   return true;
 }
 export function canClaimContract(s: State, q: Contract) {
-  if (q.complete || s.mode !== "station") return false;
+  if (q.complete || !serviceAvailable(s, "contracts")) return false;
   if (q.mission)
     return (
       q.mission.stage === "delivery" &&
@@ -409,7 +437,7 @@ export function cancelContract(s: State, id: string) {
     !q?.mission ||
     q.complete ||
     ["cancelled", "failed"].includes(q.mission.stage) ||
-    s.mode !== "station"
+    !serviceAvailable(s, "contracts")
   )
     return false;
   q.mission.stage = "cancelled";

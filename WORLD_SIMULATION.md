@@ -9,3 +9,5 @@ Station identity derives from seed, with stable founding dates, cultural type, l
 World time advances only during active play; menus/background pause. Existing save keys and checksum envelope persist. Schema migrations explicitly initialize new fields without losing cargo, missions, injuries or endings. Validate nested state, bound event/history arrays and prevent double rewards after reload.
 
 Not yet implemented by this design document: ownership wars, population change, production/stock, prisons, escape pods, insurance and remote full NPC simulation. See PROGRESS.md for actual implementation.
+
+Checkpoint 0.6: five saved staff per visited port physically commute between work and habitation. Opinion affects market prices. A paid engineer walks through gates, repairs ship modules and returns before departure. This implements local staff/service behavior, not populations, distant stock or political simulation.

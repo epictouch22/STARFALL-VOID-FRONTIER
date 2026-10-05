@@ -80,6 +80,17 @@ describe("persistent radio choices", () => {
   it("inspection declarations consume money and cannot confiscate manifests", () => {
     const { s, e } = scene("inspection");
     s.mode = "station";
+    s.location = "0-s";
+    s.x = 0;
+    s.y = 260;
+    s.docking = {
+      port: { system: 0, location: "0-s" },
+      phase: "ready",
+      timer: 0,
+      pressure: 1,
+      shipDoor: true,
+      stationDoor: false,
+    };
     expect(resolveEncounter(s, e.id, "declare")).toBe(true);
     expect(s.credits).toBe(590);
     expect(s.reputation[0]).toBe(3);

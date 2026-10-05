@@ -10,6 +10,9 @@ import {
   tickInteraction,
 } from "./actions";
 import { escorts, tickEscorts, hitEscort } from "./escort";
+import { tickDocking } from "./docking";
+import { tickResidents } from "./residents";
+import { stationFloor } from "../world/stations";
 export type Controls = {
   mx: number;
   my: number;
@@ -116,6 +119,8 @@ function enemyShot(
 export function tick(s: State, input: Controls, dt: number) {
   dt = Math.min(0.05, Math.max(0, dt));
   s.time += dt;
+  tickDocking(s, dt);
+  tickResidents(s, dt);
   s.cooldown = Math.max(0, s.cooldown - dt);
   const stats = shipStats(s);
   const flying = s.mode === "space" || s.mode === "eva";
@@ -147,6 +152,16 @@ export function tick(s: State, input: Controls, dt: number) {
     }
   }
   const thrust = Math.hypot(mx, my);
+  const clamped =
+    s.physical &&
+    s.mode === "space" &&
+    ["sealing", "equalizing", "ready"].includes(s.docking.phase);
+  if (clamped) {
+    mx = 0;
+    my = 0;
+    s.vx = 0;
+    s.vy = 0;
+  }
   const injuredLeg =
     (s.health.parts[4].health + s.health.parts[5].health) / 200;
   const legFracture = s.health.parts.slice(4).some((p) => p.wounds.fracture)
@@ -184,9 +199,18 @@ export function tick(s: State, input: Controls, dt: number) {
     s.vx = mx * 125 * Math.max(0.35, injuredLeg) * legFracture;
     s.vy = my * 125 * Math.max(0.35, injuredLeg) * legFracture;
   }
+  const previousX = s.x,
+    previousY = s.y;
   s.x += s.vx * dt;
   s.y += s.vy * dt;
-  if (interior) {
+  if (s.physical && s.mode === "station") {
+    const valid = (x: number, y: number) =>
+      stationFloor(s.seed, s.location, x, y) &&
+      (s.docking.stationDoor ||
+        !((previousY < 480 && y >= 462) || (previousY > 480 && y <= 498)));
+    if (!valid(s.x, previousY)) s.x = previousX;
+    if (!valid(s.x, s.y)) s.y = previousY;
+  } else if (interior) {
     s.x = Math.max(-230, Math.min(230, s.x));
     s.y = Math.max(-225, Math.min(290, s.y));
   } else if (s.mode === "surface") {
@@ -201,6 +225,11 @@ export function tick(s: State, input: Controls, dt: number) {
     const target = Math.atan2(my, mx),
       diff = Math.atan2(Math.sin(target - s.angle), Math.cos(target - s.angle));
     s.angle += diff * Math.min(1, dt * (has(s, "turn") ? 14 : 8));
+  }
+  if (clamped) {
+    s.angle = s.orbit.angle;
+    s.x = s.orbit.x;
+    s.y = s.orbit.y;
   }
   tickInteraction(s, dt);
   if (has(s, "aim") && s.enemies.length && flying && input.fire) {
@@ -227,7 +256,7 @@ export function tick(s: State, input: Controls, dt: number) {
   );
   s.ship.heat = Math.max(0, s.ship.heat - dt * (has(s, "heat") ? 12 : 5));
   if (s.ship.heat > 90) s.ship.hull = Math.max(0, s.ship.hull - dt * 0.2);
-  if (s.mode !== "station") {
+  if (s.mode !== "station" || s.physical) {
     for (const m of s.ship.modules) {
       if (m.fire > 0) {
         m.fire = Math.min(40, m.fire + dt * 0.02);
@@ -466,10 +495,11 @@ export function tick(s: State, input: Controls, dt: number) {
       s.reputation[0] = Math.min(100, s.reputation[0] + 2);
       s.reputation[3] = Math.max(-100, s.reputation[3] - 2);
       if (e.boss) {
-        s.bosses.push(s.chapter);
-        log(s, `${e.name} уничтожен. ${chapters[s.chapter].reveal}`);
-        s.chapter++;
-        if (s.chapter < 5) {
+        const region = Number(e.id.split("-")[1]);
+        s.bosses.push(region);
+        log(s, `${e.name} уничтожен. ${chapters[region].reveal}`);
+        s.chapter = s.physical ? s.bosses.length : s.chapter + 1;
+        if (!s.physical && s.chapter < 5) {
           for (let i = s.chapter * 5; i < s.chapter * 5 + 4; i++)
             if (!s.discovered.includes(i)) s.discovered.push(i);
           log(

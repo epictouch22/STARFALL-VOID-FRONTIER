@@ -71,7 +71,7 @@ it("migrates a version 1 published save while preserving all existing progress",
       payload,
     }),
   );
-  expect(migrated.version).toBe(5);
+  expect(migrated.version).toBe(6);
   expect(migrated.credits).toBe(1234);
   expect(migrated.slot).toBe(2);
   expect(migrated.pack).toEqual({});

@@ -33,6 +33,9 @@ import {
 import { escorts } from "../core/escort";
 import { pendingEncounters, choiceUnavailable } from "../core/encounters";
 import { encounterDefinitions } from "../data/encounters";
+import { serviceAvailable, activeResidents } from "../core/residents";
+import { stationLayout } from "../world/stations";
+import { berth } from "../core/docking";
 import { slots } from "../save/storage";
 export const esc = (text: unknown) =>
   String(text).replace(
@@ -58,6 +61,7 @@ const tabs = [
   ["galaxy", "Карта"],
   ["quests", "Журнал"],
   ["encounters", "Сигналы"],
+  ["port", "Связь / Порт"],
   ["tech", "Технологии"],
   ["craft", "Крафт"],
   ["trade", "Рынок"],
@@ -188,6 +192,28 @@ export class Interface {
                 : "Зарабатывайте, исследуйте и возвращайтесь домой. Расследование Решётки необязательно.",
         ) +
         "</p>";
+    if (s.physical && s.docking.phase !== "none" && s.mode === "space") {
+      const p = berth(s)!;
+      document.getElementById("objective")!.innerHTML =
+        '<div class="panel-label">ВОСТОЧНЫЙ ПРИЧАЛ</div><h3>' +
+        ({
+          requested: "Разрешение получено",
+          sealing: "Герметизация",
+          equalizing: "Выравнивание давления",
+          ready: "Шлюз готов",
+        }[s.docking.phase] || "") +
+        "</h3><p>" +
+        (s.docking.phase === "requested"
+          ? Math.round(Math.hypot(s.x - p.x, s.y - p.y)) +
+            " м до захватов · нос ← · скорость <12 м/с. Захват: E."
+          : s.docking.phase === "ready"
+            ? "На борт → корабельный шлюз → тоннель. Для отстыковки закройте обе двери и вернитесь в кабину."
+            : Math.ceil(s.docking.timer) +
+              " с · давление " +
+              Math.round(s.docking.pressure * 100) +
+              "%") +
+        "</p>";
+    }
     const latest = s.logs[0];
     if (latest !== this.lastLog) {
       this.lastLog = latest;
@@ -261,7 +287,7 @@ export class Interface {
         return `${q.item ? `${items[q.item]?.name}: ${quantity(s, q.item)}/${q.target}` : `Прогресс: ${Math.min(q.progress, q.target)}/${q.target}`} · ₡ ${q.reward}`;
       return `${esc(m.manifest.label)}${m.escort ? ` · Корпус ${Math.ceil(m.escort.hull)}/${m.escort.maxHull}${m.escort.arrived ? " · В порту" : " · Держитесь в пределах 250 м при прыжке"}` : ""} · ${m.manifest.weight} кг / ${m.manifest.slots} сл.<br>${m.stage === "failed" ? "Провален — конвой уничтожен" : m.stage === "cancelled" ? "Отменён — груз передан портовой службе" : m.stage === "done" ? "Доставлено" : `${m.stage === "pickup" ? "Спасти у терминала после боя" : "Доставить"}: ${esc(destinationName(s, target!))}`} · ₡ ${q.reward}`;
     };
-    return `<div class="section-intro"><h3>Контракты</h3><p>Опечатанный груз и пассажирское оборудование занимают место в корабле. Сдача возможна только в назначенном порту. Спасение: абордаж, охрана, центральный терминал, возвращение. Конвой: держитесь рядом, защищайте корабль и доведите его до порта. Отмена в порту снижает репутацию на 4.</p></div><div class="list">${s.contracts.map((q) => `<div class="list-row"><div><strong>${esc(q.title)} ${q.complete ? "✓" : ""}</strong><p>${describe(q)}</p></div><div class="contract-actions">${missionTarget(q) ? button("Маршрут", "missionRoute", q.id) : ""}${button(q.complete ? "Сдано" : q.mission?.stage === "failed" ? "Провален" : q.mission?.stage === "cancelled" ? "Отменён" : "Сдать", "claim", q.id, !canClaimContract(s, q))}${q.mission && missionTarget(q) ? button("Отменить · −4 реп.", "cancelContract", q.id, s.mode !== "station", "quiet") : ""}</div></div>`).join("") || '<p class="muted">Активных контрактов нет.</p>'}${
+    return `<div class="section-intro"><h3>Контракты</h3><p>Опечатанный груз и пассажирское оборудование занимают место в корабле. Сдача возможна только в назначенном порту. Спасение: абордаж, охрана, центральный терминал, возвращение. Конвой: держитесь рядом, защищайте корабль и доведите его до порта. Отмена в порту снижает репутацию на 4.</p></div><div class="list">${s.contracts.map((q) => `<div class="list-row"><div><strong>${esc(q.title)} ${q.complete ? "✓" : ""}</strong><p>${describe(q)}</p></div><div class="contract-actions">${missionTarget(q) ? button("Маршрут", "missionRoute", q.id) : ""}${button(q.complete ? "Сдано" : q.mission?.stage === "failed" ? "Провален" : q.mission?.stage === "cancelled" ? "Отменён" : "Сдать", "claim", q.id, !canClaimContract(s, q))}${q.mission && missionTarget(q) ? button("Отменить · −4 реп.", "cancelContract", q.id, !serviceAvailable(s,"contracts"), "quiet") : ""}</div></div>`).join("") || '<p class="muted">Активных контрактов нет.</p>'}${
       s.mode === "station"
         ? contractOffers(s)
             .filter((q) => !s.contracts.some((c) => c.id === q.id))
@@ -324,7 +350,7 @@ export class Interface {
           )
           .join(
             "",
-          )}</div>${s.mode === "station" ? button("Полное лечение · ₡ 120", "clinic", "", s.credits < 120, false ? "" : "primary") : ""}</div></div>`;
+          )}</div>${s.mode === "station" ? button("Осмотр и лечение · 10 с · CR 120", "clinic", "", s.credits < 120 || !serviceAvailable(s, "medical"), false ? "" : "primary") : ""}</div></div>`;
       }
       case "ship":
         return `<div class="section-intro"><h3>${esc(s.ship.name)} / ${esc(ships.find((x) => x.id === s.ship.class)?.name)}</h3><p>Пожары повреждают корпус. Пробоины расходуют кислород. Подойдите к отсеку внутри корабля и используйте ремкомплект.</p></div><div class="ship-summary"><span>КОРПУС <strong>${Math.round(s.ship.hull)} / ${stats.hull}</strong></span><span>ЩИТ <strong>${Math.round(s.ship.shield)} / ${stats.shield}</strong></span><span>ТЯГА <strong>${Math.round(stats.speed)} м/с</strong></span><span>НАГРЕВ <strong>${Math.round(s.ship.heat)}%</strong></span></div><div class="module-grid">${s.ship.modules.map((m) => `<article class="module-card"><h4>${m.name}</h4>${this.gauge("ИНТЕГРИТЕТ", m.integrity, 100, m.integrity < 70 ? "#eaa381" : "#84cfd2")}<p>${m.breach ? "⚠ ПРОБОИНА" : "● Герметичен"} · ${m.fire > 0 ? "Пожар " + Math.round(m.fire) : "Температура нормальная"}</p>${button("Перейти к отсеку", "navigate", m.id, s.mode !== "interior")}</article>`).join("")}</div><div class="section-intro"><h3>Оружейная система</h3><p>Энергооружие использует реактор. Кинетика и ракеты расходуют патроны.</p></div><div class="weapon-select">${[
@@ -347,7 +373,7 @@ export class Interface {
           )
           .join(
             "",
-          )}</div>${s.mode === "station" ? `<div class="section-intro"><h3>Обслуживание и верфь</h3></div>${button("Ремонт и заправка · ₡ 180", "service", "", s.credits < 180)}<div class="list">${ships.map((ship) => `<div class="list-row"><div><strong>${ship.name}</strong><p>Корпус ${ship.hull} · Скорость ${ship.speed} · Груз ${ship.cargo}</p></div>${button(s.ship.class === ship.id ? "Текущий" : `Купить · ₡ ${ship.cost}`, "buyShip", ship.id, s.ship.class === ship.id || s.credits < ship.cost || weight(s) > shipStats({ ...s, ship: { ...s.ship, class: ship.id } }).cargo)}</div>`).join("")}</div>` : ""}<div class="section-intro"><h3>Персонализация</h3></div><form id="customize-form" class="settings-grid"><label>Название корабля<input id="ship-name" maxlength="40" value="${esc(s.ship.name)}"/></label><label>Основной цвет<input id="ship-color" type="color" value="${esc(s.ship.color)}"/></label><label>Акцент<input id="ship-accent" type="color" value="${esc(s.ship.accent)}"/></label>${button("Применить", "customize")}</form>`;
+          )}</div>${s.mode === "station" ? `<div class="section-intro"><h3>Обслуживание и верфь</h3></div>${button("Нанять ремонтника · CR 180", "service", "", s.credits < 180 || !serviceAvailable(s, "tech") || !!s.maintenance)}<div class="list">${ships.map((ship) => `<div class="list-row"><div><strong>${ship.name}</strong><p>Корпус ${ship.hull} · Скорость ${ship.speed} · Груз ${ship.cargo}</p></div>${button(s.ship.class === ship.id ? "Текущий" : `Купить · ₡ ${ship.cost}`, "buyShip", ship.id, s.ship.class === ship.id || !serviceAvailable(s, "tech") || s.credits < ship.cost || weight(s) > shipStats({ ...s, ship: { ...s.ship, class: ship.id } }).cargo)}</div>`).join("")}</div>` : ""}<div class="section-intro"><h3>Персонализация</h3></div><form id="customize-form" class="settings-grid"><label>Название корабля<input id="ship-name" maxlength="40" value="${esc(s.ship.name)}"/></label><label>Основной цвет<input id="ship-color" type="color" value="${esc(s.ship.color)}"/></label><label>Акцент<input id="ship-accent" type="color" value="${esc(s.ship.accent)}"/></label>${button("Применить", "customize")}</form>`;
       case "galaxy": {
         const g = generateGalaxy(s.seed);
         const selected =
@@ -383,7 +409,55 @@ export class Interface {
           .join("")}</div>`;
       }
       case "quests":
+        if (s.physical) {
+          const c = chapters[sys.region];
+          return `${button("Радиосигналы · " + pendingEncounters(s).length, "panel", "encounters")}${s.mode === "station" ? button("Подойти к агенту Гильдии", "navigate", "contracts") : ""}<div class="story-card"><div class="eyebrow">НЕОБЯЗАТЕЛЬНОЕ РАССЛЕДОВАНИЕ / РЕШЁТКА</div><h3>${c.name}</h3><p>${c.text}</p><p>${s.evidence.includes(sys.region) ? "В архиве найден след опасного объекта. Вы можете проверить его или продолжить свою экспедицию." : "Непроверенные слухи об аномалиях этого региона. Вы не обязаны заниматься расследованием."}</p>${button("Передать вызов: " + c.boss, "boss", "", s.mode !== "space" || !s.evidence.includes(sys.region) || s.bosses.includes(sys.region) || s.enemies.some((e) => e.boss))}${s.bosses.length === 5 && !s.ending ? "<p>Доступ к локальному ретранслятору получен. Судьба всей Решётки остаётся неизвестной.</p>" + button("Изолировать узел", "ending", "destroy") + button("Оставить под наблюдением", "ending", "control") + button("Передать данные Лиге", "ending", "colonists") : ""}</div>${this.contractsMenu(s)}`;
+        }
         return `${button(`Радиосигналы · ${pendingEncounters(s).length} открытых`, "panel", "encounters")}<div class="story-card"><div class="eyebrow">${s.physical ? "НЕОБЯЗАТЕЛЬНОЕ РАССЛЕДОВАНИЕ / РЕШЁТКА" : `ГЛАВА 0${Math.min(s.chapter + 1, 5)} / ${s.bosses.length} ИЗ 5 СТРАЖЕЙ`}</div><h3>${chapters[Math.min(s.chapter, 4)].name}</h3><p>${chapters[Math.min(s.chapter, 4)].text}</p><div class="story-steps"><span class="${s.intro >= 4 ? "done" : ""}">✓ Восстановить корабль</span><span class="${s.docked ? "done" : ""}">✓ Посетить станцию</span><span class="${s.evidence.includes(s.chapter) || s.chapter >= 5 ? "done" : ""}">✓ Найти ключ в руинах</span></div>${s.chapter < 5 ? button(`Вызвать стража: ${chapters[s.chapter].boss}`, "boss", "", !s.evidence.includes(s.chapter) || s.mode !== "space" || sys.region !== s.chapter || s.enemies.some((e) => e.boss), "primary") : s.ending ? `<p class="ending-text">${esc(s.codex[s.codex.length - 1])}</p>${button("Продолжить исследование", "close")}` : `<h3>Последний выбор</h3><p>Вы получили доступ к локальному узлу. Остальная Решётка остаётся неизвестной. Решение касается только этого объекта.</p><div class="ending-choices">${button("Уничтожить сеть", "ending", "destroy")}${button("Возглавить Хор", "ending", "control")}${button("Передать колонистам", "ending", "colonists")}</div>`}</div>${this.contractsMenu(s)}`;
+      case "port": {
+        const ports = contacts(s).filter((c) =>
+          ["station", "outpost"].includes(c.kind),
+        );
+        if (s.physical && s.mode === "station") {
+          const l = stationLayout(s.seed, s.location);
+          return `<div class="section-intro"><h3>${esc(ports.find((c) => c.id === s.location)?.name)}</h3><p>${l.industry} · основана ${l.founded}. ${esc(l.history)}</p></div><p>Корабль остаётся у причала. Для выхода закройте станционную дверь снаружи, затем корабельную изнутри.</p>${button("К двери станции", "navigate", "station-airlock")}${button("К корабельному шлюзу", "navigate", "ship-airlock")}<div class="contact-grid">${activeResidents(
+            s,
+          )
+            .map((n) =>
+              button(
+                esc(n.name) +
+                  " · " +
+                  {
+                    trade: "торговец",
+                    contracts: "агент Гильдии",
+                    medical: "врач",
+                    tech: "инженер",
+                    bar: "бармен",
+                  }[n.role],
+                "navigate",
+                n.id,
+              ),
+            )
+            .join("")}</div>`;
+        }
+        return `<div class="section-intro"><h3>Связь с портами</h3><p>Радиус связи 1800 м. После разрешения подлетите к восточному причалу, совместите захваты и нажмите E. Затем дождитесь герметизации, встаньте из кресла и идите к шлюзу.</p></div><div class="list">${ports.map((c) => `<article class="list-row"><div><h3>${esc(c.name)}</h3><p>${factions[c.faction]} · ${stationLayout(s.seed, c.id).industry}</p></div>${button("Запросить причал", "requestDock", c.id, s.mode !== "space" || !s.scanned.includes(c.id))}${button("Подлететь", "navigate", c.id, s.mode !== "space")}</article>`).join("")}</div>${s.docking.phase === "requested" ? button("Отменить запрос", "cancelDock") : s.docking.phase === "ready" ? button("Отпустить магнитные захваты", "releaseDock") : ""}`;
+      }
+      case "dialogue": {
+        const n = activeResidents(s).sort(
+          (a, b) =>
+            Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y),
+        )[0];
+        if (!n || Math.hypot(n.x - s.x, n.y - s.y) > 70)
+          return "<p>Подойдите к человеку в станции и используйте E.</p>";
+        const role = {
+          trade: "Торговец",
+          contracts: "Агент Гильдии",
+          medical: "Врач",
+          tech: "Инженер",
+          bar: "Бармен",
+        }[n.role];
+        return `<div class="story-card"><div class="eyebrow">${role} · ${n.age} лет</div><h3>${esc(n.name)}</h3><p>${esc(s.logs[0])}</p><p>Отношение: ${n.opinion}. Работает по сменам; вы можете встретить его в жилом блоке.</p>${button("О жизни Предела", "askLore", n.id)}${button("Обсудить работу", "panel", { trade: "trade", contracts: "quests", medical: "medical", tech: "tech", bar: "codex" }[n.role])}${n.role === "tech" ? button("Корабль / верфь", "panel", "ship") : ""}</div><h3>Память собеседника</h3><div class="codex-entries">${n.memories.map((m) => `<article><p>${esc(m)}</p></article>`).join("")}</div>`;
+      }
       case "encounters":
         return `<div class="section-intro"><h3>Бортовая связь</h3><p>Сканируйте обломки и аномалии, чтобы принять сигнал. Патруль связывается при первом заходе в порт. Можно закрыть терминал и вернуться позже; выбор сохраняется сразу.</p></div>${
           s.encounters
@@ -408,7 +482,7 @@ export class Interface {
             .join("") || '<p class="muted">Вы ещё не отвечали на сигналы.</p>'
         }</div>`;
       case "tech":
-        return `<div class="section-intro"><h3>Дерево технологий / ${s.upgrades.length} из ${upgrades.length}</h3><p>Покупка и установка доступны на станциях. Ветви открываются последовательно; дальние технологии требуют победы над стражами.</p></div>${[
+        return `${s.physical && s.mode === "station" ? button("Подойти к инженеру", "navigate", "tech") : ""}<div class="section-intro"><h3>Дерево технологий / ${s.upgrades.length} из ${upgrades.length}</h3><p>Покупка и установка доступны на станциях. Ветви открываются последовательно; дальние технологии требуют победы над стражами.</p></div>${[
           ...new Set(upgrades.map((u) => u.category)),
         ]
           .map(
@@ -417,7 +491,7 @@ export class Interface {
                 .filter((u) => u.category === category)
                 .map(
                   (u) =>
-                    `<article class="tech-card ${s.upgrades.includes(u.id) ? "installed" : ""}"><div class="tech-top"><span>${u.region + 1} УРОВЕНЬ</span><b>${s.upgrades.includes(u.id) ? "✓" : "◇"}</b></div><h4>${u.name}</h4><p>${u.description}</p><small>${u.requires ? `Нужно: ${upgrades.find((x) => x.id === u.requires)?.name}` : "Базовая технология"}</small>${button(s.upgrades.includes(u.id) ? "Установлено" : `Установить · ₡ ${u.cost}`, "upgrade", u.id, s.upgrades.includes(u.id) || s.credits < u.cost || s.mode !== "station" || (s.physical ? !s.discovered.some((id) => Math.floor(id / 5) >= u.region) : s.bosses.length < u.region) || !!(u.requires && !s.upgrades.includes(u.requires)))}</article>`,
+                    `<article class="tech-card ${s.upgrades.includes(u.id) ? "installed" : ""}"><div class="tech-top"><span>${u.region + 1} УРОВЕНЬ</span><b>${s.upgrades.includes(u.id) ? "✓" : "◇"}</b></div><h4>${u.name}</h4><p>${u.description}</p><small>${u.requires ? `Нужно: ${upgrades.find((x) => x.id === u.requires)?.name}` : "Базовая технология"}</small>${button(s.upgrades.includes(u.id) ? "Установлено" : `Установить · ₡ ${u.cost}`, "upgrade", u.id, s.upgrades.includes(u.id) || s.credits < u.cost || !serviceAvailable(s, "tech") || (s.physical ? !s.discovered.some((id) => Math.floor(id / 5) >= u.region) : s.bosses.length < u.region) || !!(u.requires && !s.upgrades.includes(u.requires)))}</article>`,
                 )
                 .join("")}</div>`,
           )
@@ -436,12 +510,12 @@ export class Interface {
           )
           .join("")}</div>`;
       case "trade":
-        return `<div class="section-intro"><h3>Рынок ${esc(sys.name)} · ₡ ${s.credits}</h3><p>${s.mode === "station" ? `${factions[faction]}. Репутация ${s.reputation[faction]}. Цены зависят от системы и отношения фракции.` : "Стыкуйтесь с портом для торговли."} Груз ${weight(s).toFixed(1)} / ${stats.cargo} кг.</p></div><div class="trade-list">${Object.entries(
+        return `${s.physical && s.mode === "station" ? button("Подойти к торговцу", "navigate", "trade") : ""}<div class="section-intro"><h3>Рынок ${esc(sys.name)} · ₡ ${s.credits}</h3><p>${s.mode === "station" ? `${factions[faction]}. Репутация ${s.reputation[faction]}. Цены зависят от системы и отношения фракции.` : "Стыкуйтесь с портом для торговли."} Груз ${weight(s).toFixed(1)} / ${stats.cargo} кг.</p></div><div class="trade-list">${Object.entries(
           items,
         )
           .map(
             ([id, i]) =>
-              `<div class="trade-row"><span class="trade-icon" style="color:${i.color}">${i.kind === "resource" ? "⬡" : i.kind === "medical" ? "✚" : "▣"}</span><div><strong>${i.name}</strong><small>Доступно: ${quantity(s, id)}</small></div>${button(`+1 · ₡ ${price(s, id, false, faction)}`, "buy", id, s.mode !== "station" || s.credits < price(s, id, false, faction))}${button(`−1 · ₡ ${price(s, id, true, faction)}`, "sell", id, s.mode !== "station" || !quantity(s, id))}</div>`,
+              `<div class="trade-row"><span class="trade-icon" style="color:${i.color}">${i.kind === "resource" ? "⬡" : i.kind === "medical" ? "✚" : "▣"}</span><div><strong>${i.name}</strong><small>Доступно: ${quantity(s, id)}</small></div>${button(`+1 · ₡ ${price(s, id, false, faction)}`, "buy", id, !serviceAvailable(s, "trade") || s.credits < price(s, id, false, faction))}${button(`−1 · ₡ ${price(s, id, true, faction)}`, "sell", id, !serviceAvailable(s, "trade") || !quantity(s, id))}</div>`,
           )
           .join("")}</div>`;
       case "codex":

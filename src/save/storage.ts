@@ -3,6 +3,8 @@ import { newGame } from "../core/state";
 import { items, upgrades, ships } from "../data/catalog";
 import { hash, generateGalaxy } from "../world/galaxy";
 import { encounterDefinitions } from "../data/encounters";
+import { emptyDock } from "../core/docking";
+import { stationContact, stationFloor } from "../world/stations";
 const key = (slot: number) => `starfall-save-v1-${slot}`;
 export function validateState(value: unknown): value is State {
   try {
@@ -15,7 +17,7 @@ function validate(value: unknown): value is State {
   if (!value || typeof value !== "object") return false;
   const s = value as State,
     template = newGame();
-  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 5)
+  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 6)
     return false;
   const validNum = (n: unknown, min = 0, max = 1e9) =>
     typeof n === "number" && Number.isFinite(n) && n >= min && n <= max;
@@ -280,7 +282,7 @@ function validate(value: unknown): value is State {
         !str(q.item) ||
         (q.item !== "" && !items[q.item]) ||
         ![q.target, q.progress, q.reward].every((n) => validNum(n)) ||
-        !validNum(q.faction, 0, 4) ||
+        !validNum(q.faction, 0, 5) ||
         !Number.isInteger(q.faction) ||
         !validMission(q.mission, q.complete, q.type) ||
         typeof q.complete !== "boolean",
@@ -301,10 +303,79 @@ function validate(value: unknown): value is State {
     )
   )
     return false;
+  const dock = s.docking;
+  if (
+    !dock ||
+    !["none", "requested", "sealing", "equalizing", "ready"].includes(
+      dock.phase,
+    ) ||
+    !validNum(dock.timer, 0, 4) ||
+    !validNum(dock.pressure, 0, 1) ||
+    typeof dock.shipDoor !== "boolean" ||
+    typeof dock.stationDoor !== "boolean" ||
+    (dock.phase === "none"
+      ? dock.port !== null ||
+        dock.shipDoor ||
+        dock.stationDoor ||
+        dock.pressure !== 0
+      : !validPort(dock.port, ["station", "outpost"]) ||
+        dock.port?.system !== s.system) ||
+    (dock.phase !== "ready" && (dock.shipDoor || dock.stationDoor)) ||
+    (dock.phase === "ready" && dock.pressure !== 1)
+  )
+    return false;
+  if (
+    !Array.isArray(s.residents) ||
+    s.residents.length > 190 ||
+    new Set(s.residents.map((n) => n.id)).size !== s.residents.length ||
+    s.residents.some(
+      (n) =>
+        !n ||
+        !str(n.name, 80) ||
+        !["trade", "contracts", "medical", "tech", "bar"].includes(n.role) ||
+        n.id !== `${n.port}:${n.role}` ||
+        !stationContact(s.seed, n.port) ||
+        !validNum(n.age, 18, 100) ||
+        !validNum(n.opinion, -100, 100) ||
+        typeof n.met !== "boolean" ||
+        ![n.x, n.y, n.homeX, n.homeY].every((v) => validNum(v, -1500, 1500)) ||
+        !stationFloor(s.seed, n.port, n.x, n.y) ||
+        !Array.isArray(n.memories) ||
+        n.memories.length > 20 ||
+        n.memories.some((m) => !str(m, 200)),
+    )
+  )
+    return false;
+  if (s.maintenance !== null) {
+    const m = s.maintenance;
+    if (
+      !m ||
+      !str(m.port, 100) ||
+      m.port !== dock.port?.location ||
+      dock.phase !== "ready" ||
+      !s.residents.some(
+        (n) => n.id === m.worker && n.role === "tech" && n.port === m.port,
+      ) ||
+      !["walking", "working", "returning"].includes(m.phase) ||
+      !validNum(m.duration, 24, 40) ||
+      !validNum(m.progress, 0, m.duration)
+    )
+      return false;
+  }
+  if (
+    s.physical &&
+    s.mode === "station" &&
+    (dock.phase !== "ready" ||
+      dock.port?.location !== s.location ||
+      !dock.shipDoor ||
+      !stationFloor(s.seed, s.location, s.x, s.y))
+  )
+    return false;
   if (s.activity !== null) {
     const a = s.activity;
     if (
       !s.physical ||
+      !["interact", "clinic"].includes(a.operation) ||
       !a ||
       !str(a.target, 100) ||
       !str(a.label, 150) ||
@@ -418,7 +489,7 @@ export function decode(raw: string): State {
   const e = JSON.parse(raw);
   if (
     e.format !== "STARFALL" ||
-    ![1, 2, 3, 4, 5].includes(e.saveVersion) ||
+    ![1, 2, 3, 4, 5, 6].includes(e.saveVersion) ||
     typeof e.payload !== "string" ||
     hash(e.payload) !== e.checksum
   )
@@ -435,9 +506,57 @@ export function migrate(value: unknown): unknown {
   if (!value || typeof value !== "object")
     throw new Error("Некорректное сохранение");
   const old = value as Record<string, unknown>;
-  if (old.version === 5) return old;
-  if (old.version === 4)
+  if (old.version === 6) return old;
+  if (old.version === 5) {
+    const dock = emptyDock();
+    if (
+      old.physical &&
+      old.mode === "station" &&
+      typeof old.location === "string" &&
+      typeof old.seed === "string"
+    ) {
+      const c = stationContact(old.seed, old.location);
+      if (c && typeof old.system === "number") {
+        dock.port = { system: old.system, location: old.location };
+        dock.phase = "ready";
+        dock.pressure = 1;
+        return {
+          ...old,
+          version: 6,
+          docking: dock,
+          residents: [],
+          maintenance: null,
+          activity:
+            old.activity && typeof old.activity === "object"
+              ? { ...old.activity, operation: "interact" }
+              : null,
+          mode: "interior",
+          location: "",
+          x: 0,
+          y: 260,
+          orbit: {
+            x: c.x + c.radius + 48,
+            y: c.y,
+            angle: Math.PI,
+            active: true,
+          },
+        };
+      }
+    }
     return {
+      ...old,
+      version: 6,
+      docking: dock,
+      residents: [],
+      maintenance: null,
+      activity:
+        old.activity && typeof old.activity === "object"
+          ? { ...old.activity, operation: "interact" }
+          : null,
+    };
+  }
+  if (old.version === 4)
+    return migrate({
       ...old,
       version: 5,
       encounters: [],
@@ -448,7 +567,7 @@ export function migrate(value: unknown): unknown {
         Array.isArray(old.reputation) && old.reputation.length === 5
           ? [...old.reputation, 0]
           : old.reputation,
-    };
+    });
   if (old.version === 3)
     return migrate({
       ...old,

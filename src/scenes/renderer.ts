@@ -12,6 +12,8 @@ import { currentPlanet, stationPoints } from "../core/actions";
 import { has } from "../core/state";
 import { missionTarget } from "../core/economy";
 import { escorts } from "../core/escort";
+import { stationLayout, stationContact } from "../world/stations";
+import { activeResidents } from "../core/residents";
 export class Renderer {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -115,8 +117,8 @@ export class Renderer {
           ? 0.58
           : 0.42
         : 0.85;
-    this.cx = indoor ? 0 : s.x;
-    this.cy = indoor ? 30 : s.y;
+    this.cx = indoor && !(s.mode === "station" && s.physical) ? 0 : s.x;
+    this.cy = indoor && !(s.mode === "station" && s.physical) ? 30 : s.y;
     c.fillStyle = "#070c16";
     c.fillRect(0, 0, w, h);
     this.drawStars(s, playing);
@@ -163,7 +165,14 @@ export class Renderer {
         if (s.mode === "surface" || s.mode === "derelict")
           this.person(e.x, e.y, e.angle, "#df756b");
         else if (e.boss)
-          this.drawBoss(e.x, e.y, e.angle, s.chapter, e.phase, s.time);
+          this.drawBoss(
+            e.x,
+            e.y,
+            e.angle,
+            Number(e.id.split("-")[1]),
+            e.phase,
+            s.time,
+          );
         else this.ship(e.x, e.y, e.angle, "#e97e7e", true, s.time, 0.8);
         this.bar(
           e.x,
@@ -586,6 +595,10 @@ export class Renderer {
     c.restore();
   }
   private drawInterior(s: State) {
+    if (s.physical && s.mode === "station") {
+      this.drawStation(s);
+      return;
+    }
     const c = this.ctx;
     const station = s.mode === "station";
     c.fillStyle = "#111d2b";
@@ -677,6 +690,18 @@ export class Renderer {
       "#6d8da0",
       12,
     );
+    if (s.physical) {
+      this.label("СВАРОЧНЫЙ ПОСТ", 150, -180, "#baab84", 10);
+      c.fillStyle = "#765d37";
+      c.fillRect(125, -162, 50, 24);
+      const worker =
+        s.maintenance &&
+        s.residents.find((n) => n.id === s.maintenance!.worker);
+      if (worker && worker.y < 320) {
+        this.person(worker.x, worker.y, Math.PI, "#c19759");
+        this.label(worker.name, worker.x, worker.y - 26, "#d4c397", 10);
+      }
+    }
   }
   private drawSurface(s: State) {
     const p = currentPlanet(s);
@@ -771,6 +796,103 @@ export class Renderer {
       b.color,
       14,
     );
+  }
+  private drawStation(s: State) {
+    const c = this.ctx,
+      layout = stationLayout(s.seed, s.location),
+      port = stationContact(s.seed, s.location)!;
+    const floor = (x: number, y: number, w: number, h: number) => {
+      c.fillStyle = "#172028";
+      c.fillRect(x - w / 2, y - h / 2, w, h);
+      c.strokeStyle = "#53616c";
+      c.lineWidth = 4;
+      c.strokeRect(x - w / 2, y - h / 2, w, h);
+      c.strokeStyle = "#2b353e";
+      c.lineWidth = 0.6;
+      for (let yy = y - h / 2 + 12; yy < y + h / 2; yy += 28) {
+        c.beginPath();
+        c.moveTo(x - w / 2 + 8, yy);
+        c.lineTo(x + w / 2 - 8, yy);
+        c.stroke();
+      }
+    };
+    floor(0, 470, 96, 350);
+    floor(0, 910, 110, 760);
+    for (const r of layout.rooms) {
+      floor(r.x / 2, r.y, 210, 80);
+      floor(r.x, r.y, r.width, r.height);
+      c.fillStyle = r.color;
+      c.fillRect(
+        r.x - r.width / 2 + 9,
+        r.y - r.height / 2 + 9,
+        r.width - 18,
+        3,
+      );
+      this.label(r.name, r.x, r.y - r.height / 2 + 27, r.color, 10);
+      c.fillStyle = "#34424c";
+      if (r.id === "trade")
+        for (let i = 0; i < 6; i++) {
+          c.fillRect(
+            r.x - 100 + (i % 3) * 42,
+            r.y + 25 + Math.floor(i / 3) * 25,
+            30,
+            20,
+          );
+          c.strokeStyle = "#96764e";
+          c.strokeRect(
+            r.x - 100 + (i % 3) * 42,
+            r.y + 25 + Math.floor(i / 3) * 25,
+            30,
+            20,
+          );
+        }
+      else if (r.id === "medical") {
+        c.fillRect(r.x - 90, r.y + 25, 90, 32);
+        c.fillStyle = "#a4b6ae";
+        c.fillRect(r.x - 85, r.y + 29, 22, 24);
+        this.label("+", r.x + 83, r.y + 22, "#86baaa", 30);
+      } else if (r.id === "habitation")
+        for (let i = 0; i < 3; i++) {
+          c.fillRect(r.x - 100 + i * 70, r.y + 25, 52, 40);
+          c.fillStyle = "#667d89";
+          c.fillRect(r.x - 97 + i * 70, r.y + 28, 46, 10);
+          c.fillStyle = "#34424c";
+        }
+      else {
+        c.fillRect(r.x - 105, r.y + 25, 205, 25);
+        c.fillStyle = r.color;
+        for (let i = 0; i < 4; i++)
+          c.fillRect(r.x - 90 + i * 50, r.y + 30, 18, 3);
+      }
+    }
+    this.drawInterior({ ...s, mode: "interior" });
+    for (const [y, open, label] of [
+      [300, s.docking.shipDoor, "КОРАБЛЬ"],
+      [480, s.docking.stationDoor, "СТАНЦИЯ"],
+    ] as const) {
+      c.fillStyle = open ? "#6c927966" : "#876742";
+      c.fillRect(-46, y - 7, open ? 9 : 92, 14);
+      c.fillStyle = open ? "#83ba93" : "#dbaf67";
+      c.fillRect(35, y - 25, 10, 10);
+      this.label(label, 0, y - 35, "#9ba9ae", 10);
+    }
+    this.label(`${port.name} / ${layout.industry}`, 0, 565, "#d3c2a5", 12);
+    this.label(
+      `ОСНОВАНА ${layout.founded} · ПРЕДЕЛ / 2497`,
+      0,
+      584,
+      "#728d9c",
+      9,
+    );
+    for (const n of activeResidents(s)) {
+      this.person(
+        n.x,
+        n.y,
+        Math.PI,
+        layout.rooms.find((r) => r.id === n.role)!.color,
+      );
+      this.label(n.name, n.x, n.y - 26, "#c5c7bd", 10);
+    }
   }
   private drawBoss(
     x: number,

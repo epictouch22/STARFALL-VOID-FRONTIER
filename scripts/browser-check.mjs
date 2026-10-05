@@ -4,13 +4,13 @@ const base =
   process.env.GAME_URL || "http://localhost:4173/STARFALL-VOID-FRONTIER/";
 await mkdir("test-results", { recursive: true });
 const failures = [];
-for (const [name, browserType, options] of [
+for (const [name, type, options] of [
   ["desktop", chromium, { viewport: { width: 1440, height: 1000 } }],
   ["iphone-webkit", webkit, { ...devices["iPhone 13"] }],
 ]) {
-  const browser = await browserType.launch({ headless: true });
-  const page = await browser.newPage(options);
-  const errors = [];
+  const browser = await type.launch({ headless: true }),
+    page = await browser.newPage(options),
+    errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("response", (r) => {
     if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`);
@@ -19,238 +19,7 @@ for (const [name, browserType, options] of [
     await page.goto(base, { waitUntil: "networkidle" });
     await page.screenshot({ path: `test-results/${name}-title.png` });
     await page.locator('[data-action="new"]').click();
-    async function moveTo(module) {
-      await page.locator('.header-actions [data-action="panel"]').click();
-      await page
-        .locator(`[data-action="navigate"][data-param="${module}"]`)
-        .click();
-      await page.waitForTimeout(2600);
-      await page.locator("#interact-button").click();
-      if (module !== "cockpit") await page.waitForTimeout(4800);
-    }
-    for (const module of [
-      "fabricator",
-      "airlock",
-      "reactor",
-      "engine",
-      "cockpit",
-    ])
-      await moveTo(module);
-    await page.locator('[data-action="scan"]').click();
-    await page.locator('.quick-nav [data-param="galaxy"]').click();
-    await page.locator('[data-action="navigate"][data-param="0-s"]').click();
-    await page.waitForTimeout(6500);
-    await page.locator("#interact-button").click();
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: `test-results/${name}-game.png` });
-    const system = await page.locator("#system-name").innerText();
-    if (!system.includes("СТЫКОВКА"))
-      throw new Error(`Docking failed: ${system}`);
-    await page.locator('.quick-nav [data-param="quests"]').click();
-    await page.locator('.menu-tabs [data-param="encounters"]').click();
-    await page
-      .locator(
-        '[data-action="encounterChoice"][data-param="inspection:0|declare"]',
-      )
-      .click();
-    await page.screenshot({ path: `test-results/${name}-encounters.png` });
-    await page.locator('.menu-footer [data-action="close"]').click();
-    await page.locator('.quick-nav [data-param="inventory"]').click();
-    await page.locator('[data-action="use"][data-param="fuel"]').click();
-    await page
-      .locator('.menu-tabs [data-action="panel"][data-param="medical"]')
-      .click();
-    await page.screenshot({ path: `test-results/${name}-medical.png` });
-    await page
-      .locator('.menu-tabs [data-action="panel"][data-param="trade"]')
-      .click();
-    await page.locator('[data-action="buy"][data-param="iron"]').click();
-    await page
-      .locator('.menu-tabs [data-action="panel"][data-param="quests"]')
-      .click();
-    await page.locator('[data-action="accept"]').first().click();
-    await page
-      .locator('[data-action="accept"][data-param="0-delivery"]')
-      .click();
-    await page
-      .locator('[data-action="accept"][data-param="0-passenger"]')
-      .click();
-    if (
-      await page
-        .locator('[data-action="claim"][data-param="0-delivery"]')
-        .isEnabled()
-    )
-      throw new Error("Delivery can be claimed at origin");
-    await page.locator('[data-action="accept"][data-param="0-escort"]').click();
-    await page.screenshot({ path: `test-results/${name}-missions.png` });
-    await page
-      .locator('.menu-tabs [data-action="panel"][data-param="settings"]')
-      .click();
-    await page.locator('#modal [data-action="save"]').click();
-    const saved = await page.evaluate(
-      () => JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
-    );
-    const state = JSON.parse(saved);
-    if (
-      state.intro !== 4 ||
-      state.mode !== "station" ||
-      state.contracts.length !== 4 ||
-      state.version !== 5
-    )
-      throw new Error("Saved progress mismatch");
-    await page.reload({ waitUntil: "networkidle" });
-    await page.locator('[data-action="continue"]').click();
-    if (!(await page.locator("#system-name").innerText()).includes("СТЫКОВКА"))
-      throw new Error("Reload lost location");
-    const radioSave = await page.evaluate(() =>
-      JSON.parse(
-        JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
-      ),
-    );
-    if (
-      radioSave.encounters.find((e) => e.id === "inspection:0")?.choice !==
-      "declare"
-    )
-      throw new Error("Encounter decision lost on reload");
-    await page.locator('.header-actions [data-action="panel"]').click();
-    await page.locator('.menu-tabs [data-param="tech"]').click();
-    await page
-      .locator('[data-action="upgrade"][data-param="shield-0"]')
-      .click();
-    await page.locator('.menu-footer [data-action="close"]').click();
-    await page.locator("#interact-button").click();
-    // Follow the real mission route after save/reload and return to the campaign system.
-    // The browser test never writes save data or invokes debug actions.
-    await page.locator('.quick-nav [data-param="quests"]').click();
-    await page
-      .locator('[data-action="missionRoute"][data-param="0-delivery"]')
-      .click();
-    if (!(await page.locator(".mission-map-marker").count()))
-      throw new Error("Missing mission route marker");
-    await page.locator('[data-action="jump"][data-param="1"]').click();
-    await page.locator('.quick-nav [data-param="galaxy"]').click();
-    await page.locator('[data-action="navigate"][data-param="1-s"]').click();
-    await page.waitForTimeout(6500);
-    await page.locator("#interact-button").click();
-    await page.locator('.quick-nav [data-param="quests"]').click();
-    await page
-      .locator('[data-action="claim"][data-param="0-delivery"]')
-      .click();
-    await page
-      .locator('[data-action="claim"][data-param="0-passenger"]')
-      .click();
-    if (
-      await page
-        .locator('[data-action="claim"][data-param="0-delivery"]')
-        .isEnabled()
-    )
-      throw new Error("Duplicate delivery reward available");
-    await page.locator('[data-action="claim"][data-param="0-escort"]').click();
-    await page.screenshot({ path: `test-results/${name}-delivery.png` });
-    await page.locator('.menu-footer [data-action="close"]').click();
-    await page.locator('.header-actions [data-action="save"]').click();
-    const delivery = await page.evaluate(() =>
-      JSON.parse(
-        JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
-      ),
-    );
-    if (
-      !delivery.contracts
-        .filter((q) => ["delivery", "passenger", "escort"].includes(q.type))
-        .every((q) => q.complete && q.mission.stage === "done")
-    )
-      throw new Error("Mission state did not persist");
-    await page.locator("#interact-button").click();
-    await page.locator('.quick-nav [data-param="galaxy"]').click();
-    await page.locator('[data-system="0"]').click();
-    await page.locator('[data-action="jump"][data-param="0"]').click();
-    await page.locator('.quick-nav [data-param="galaxy"]').click();
-    await page.locator('[data-action="navigate"][data-param="0-p0"]').click();
-    await page.waitForTimeout(7500);
-    await page.locator("#interact-button").click();
-    await page.waitForTimeout(300);
-    if (
-      !(await page.locator("#system-name").innerText()).includes("ПОВЕРХНОСТЬ")
-    )
-      throw new Error("Landing failed");
-    // Navigate using the actual scene coordinates and canvas scale, then interact.
-    const size = page.viewportSize(),
-      scale = size.width < 700 ? 0.58 : 0.85;
-    await page.locator("#world").click({
-      position: {
-        x: size.width / 2 + 320 * scale,
-        y: size.height / 2 - 200 * scale,
-      },
-    });
-    await page.waitForTimeout(3400);
-    await page.locator("#interact-button").click();
-    await page.waitForTimeout(6300);
-    await page.locator('.header-actions [data-action="save"]').click();
-    const surface = await page.evaluate(() =>
-      JSON.parse(
-        JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
-      ),
-    );
-    if (!surface.evidence.includes(0) || !surface.pack.exo)
-      throw new Error(
-        "Ruin scan did not persist story evidence in suit inventory",
-      );
-    await page.screenshot({ path: `test-results/${name}-surface.png` });
-    await page.locator('.quick-nav [data-param="inventory"]').click();
-    await page.locator('[data-action="quick"][data-param="3"]').click();
-    await page.locator('.menu-footer [data-action="close"]').click();
-    // A real pointer drag exercises the same capture/cancel path used by the touch sticks.
-    if (name === "iphone-webkit") {
-      const box = await page.locator("#stick-left").boundingBox();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(box.x + box.width * 0.85, box.y + box.height / 2);
-      await page.waitForTimeout(500);
-      await page.mouse.up();
-    }
-    await page.locator('[data-action="board"]').click();
-    await page.waitForTimeout(4200);
-    await page.locator("#interact-button").click();
-    await page.waitForTimeout(300);
-    if (
-      !(await page.locator("#system-name").innerText()).includes(
-        "СВОБОДНЫЙ ПОЛЁТ",
-      )
-    )
-      throw new Error("Takeoff failed");
-    await page.locator('.quick-nav [data-param="quests"]').click();
-    await page.locator('[data-action="boss"]').click();
-    if (name === "iphone-webkit") {
-      const box = await page.locator("#stick-right").boundingBox();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(
-        box.x + box.width * 0.88,
-        box.y + box.height * 0.442,
-      );
-      await page.waitForTimeout(8500);
-      await page.mouse.up();
-    } else {
-      await page.mouse.move(
-        size.width / 2 + 500 * scale,
-        size.height / 2 - (500 * scale * 100) / 650,
-      );
-      await page.keyboard.down("Space");
-      await page.waitForTimeout(8500);
-      await page.keyboard.up("Space");
-    }
-    await page.locator('.header-actions [data-action="save"]').click();
-    const victory = await page.evaluate(() =>
-      JSON.parse(
-        JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
-      ),
-    );
-    if (victory.chapter !== 1 || !victory.bosses.includes(0))
-      throw new Error(
-        `First boss combat failed: chapter ${victory.chapter}, mode ${victory.mode}, hull ${victory.ship.hull}`,
-      );
-    await page.screenshot({ path: `test-results/${name}-boss-victory.png` });
-    const readSaved = async () => {
+    const read = async () => {
       await page.locator('.header-actions [data-action="save"]').click();
       return page.evaluate(() =>
         JSON.parse(
@@ -258,143 +27,224 @@ for (const [name, browserType, options] of [
         ),
       );
     };
-    // Complete the remaining four chapters through the production UI.
-    // Saved state is read only to aim the controls and assert results.
-    for (let chapter = 1; chapter < 5; chapter++) {
-      await page.locator('.quick-nav [data-param="galaxy"]').click();
-      await page.locator(`[data-system="${chapter * 5}"]`).click();
-      await page
-        .locator(`[data-action="jump"][data-param="${chapter * 5}"]`)
-        .click();
-      await page.locator('.quick-nav [data-param="galaxy"]').click();
-      await page
-        .locator(`[data-action="navigate"][data-param="${chapter * 5}-s"]`)
-        .click();
-      await page.waitForTimeout(6500);
-      await page.locator("#interact-button").click();
-      if (
-        !(await page.locator("#system-name").innerText()).includes("СТЫКОВКА")
-      )
-        throw new Error(`Chapter ${chapter} docking failed`);
-      await page.locator('.header-actions [data-action="panel"]').click();
-      if (chapter === 1) {
-        await page.locator('.menu-tabs [data-param="quests"]').click();
-        await page
-          .locator('[data-action="claim"][data-param="0-mining"]')
-          .click();
-        await page.locator('.menu-tabs [data-param="tech"]').click();
-        for (const id of [
-          "hull-0",
-          "hull-1",
-          "shield-1",
-          "weapon-0",
-          "weapon-1",
-          "weapon-2",
-        ])
-          await page
-            .locator(`[data-action="upgrade"][data-param="${id}"]`)
-            .click();
-        await page.locator('.menu-tabs [data-param="ship"]').click();
-        await page.locator('[data-action="weapon"][data-param="rail"]').click();
+    const panel = async (id) => {
+      if (!(await page.locator("#modal").isVisible()))
+        await page.locator('.header-actions [data-action="panel"]').click();
+      await page.locator(`.menu-tabs [data-param="${id}"]`).click();
+    };
+    const close = async () => {
+      if (await page.locator("#modal").isVisible())
+        await page.locator('.menu-footer [data-action="close"]').click();
+    };
+    async function waitUntil(predicate, seconds = 20) {
+      for (let i = 0; i < seconds * 2; i++) {
+        await page.waitForTimeout(500);
+        const s = await read();
+        if (predicate(s)) return s;
       }
-      await page.locator('[data-action="service"]').click();
-      await page.locator('.menu-footer [data-action="close"]').click();
-      await page.locator("#interact-button").click();
-      await page.locator('.quick-nav [data-param="galaxy"]').click();
+      throw new Error(`World condition timed out after ${seconds}s`);
+    }
+    async function module(id) {
+      await panel("ship");
       await page
-        .locator(`[data-action="navigate"][data-param="${chapter * 5}-p0"]`)
+        .locator(`[data-action="navigate"][data-param="${id}"]`)
+        .click();
+      const target=(await read()).ship.modules.find(m=>m.id===id);
+      await waitUntil(s=>Math.hypot(s.x-target.x,s.y-target.y)<55,12);
+      await page.locator("#interact-button").click();
+      if (!["cockpit", "airlock"].includes(id) || (await read()).activity)
+        await waitUntil((s) => !s.activity, 8);
+    }
+    for (const id of ["fabricator", "airlock", "reactor", "engine", "cockpit"])
+      await module(id);
+    let s = await read();
+    if (s.intro !== 4 || s.mode !== "space" || s.physical !== true)
+      throw Error("Physical introduction failed");
+    console.log(`${name}: timed physical introduction passed`);
+    async function dock(id) {
+      await panel("port");
+      await page
+        .locator(`[data-action="requestDock"][data-param="${id}"]`)
+        .click();
+      await page
+        .locator(`[data-action="navigate"][data-param="${id}"]`)
         .click();
       await page.waitForTimeout(7500);
       await page.locator("#interact-button").click();
-      if (
-        !(await page.locator("#system-name").innerText()).includes(
-          "ПОВЕРХНОСТЬ",
-        )
-      )
-        throw new Error(`Chapter ${chapter} landing failed`);
-      await page.locator("#world").click({
-        position: {
-          x: size.width / 2 + 320 * scale,
-          y: size.height / 2 - 200 * scale,
-        },
-      });
-      await page.waitForTimeout(3400);
-      await page.locator("#interact-button").click();
-      await page.waitForTimeout(6300);
+      const captured = await read();
+      if (captured.docking.phase !== "sealing")
+        throw Error(`Capture failed: ${captured.logs[0]}`);
+      if (captured.mode !== "space")
+        throw Error("Docking teleported into station");
+      await waitUntil((s) => s.docking.phase === "ready", 10);
       await page.locator('[data-action="board"]').click();
-      await page.waitForTimeout(4200);
+      await module("airlock");
+      await panel("port");
+      await page
+        .locator('[data-action="navigate"][data-param="station-airlock"]')
+        .click();
+      await page.waitForTimeout(2500);
       await page.locator("#interact-button").click();
-      await page.locator('.quick-nav [data-param="quests"]').click();
-      await page.locator('[data-action="boss"]').click();
-      let combat = await readSaved();
-      for (
-        let second = 0;
-        second < 90 && combat.chapter === chapter && combat.mode === "space";
-        second++
-      ) {
-        const enemy = combat.enemies.find((e) => e.boss);
-        if (!enemy) throw new Error(`Missing boss at chapter ${chapter}`);
-        const angle = Math.atan2(enemy.y - combat.y, enemy.x - combat.x);
-        if (name === "iphone-webkit") {
-          const box = await page.locator("#stick-right").boundingBox();
-          await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-          await page.mouse.down();
-          await page.mouse.move(
-            box.x + box.width / 2 + Math.cos(angle) * box.width * 0.42,
-            box.y + box.height / 2 + Math.sin(angle) * box.height * 0.42,
-          );
-          await page.waitForTimeout(1000);
-          await page.mouse.up();
-        } else {
-          await page.mouse.move(
-            size.width / 2 + Math.cos(angle) * 200,
-            size.height / 2 + Math.sin(angle) * 200,
-          );
-          await page.keyboard.down("Space");
-          await page.waitForTimeout(1000);
-          await page.keyboard.up("Space");
-        }
-        combat = await readSaved();
-      }
-      if (combat.chapter !== chapter + 1 || combat.mode !== "space")
-        throw new Error(
-          `Campaign boss ${chapter} failed: hull ${combat.ship.hull}, mode ${combat.mode}`,
-        );
-      console.log(
-        `${name}: chapter ${chapter + 1}/5 passed with earned equipment`,
-      );
-      if (chapter === 2) {
-        await page.reload({ waitUntil: "networkidle" });
-        await page.locator('[data-action="continue"]').click();
-      }
+      const entered = await read();
+      if (
+        entered.mode !== "station" ||
+        !entered.docking.shipDoor ||
+        !entered.docking.stationDoor
+      )
+        throw Error("Physical airlock traversal failed");
     }
-    await page.locator('.quick-nav [data-param="quests"]').click();
-    await page
-      .locator('[data-action="ending"][data-param="colonists"]')
-      .click();
-    await page.screenshot({ path: `test-results/${name}-ending.png` });
-    await page.locator('.menu-footer [data-action="close"]').click();
-    const finalState = await readSaved();
-    if (finalState.ending !== "colonists" || finalState.bosses.length !== 5)
-      throw new Error("Ending was not saved");
-    await page.reload({ waitUntil: "networkidle" });
-    await page.locator('[data-action="continue"]').click();
+    async function visit(role) {
+      await panel("port");
+      await page
+        .locator(`[data-action="navigate"][data-param$=":${role}"]`)
+        .click();
+      await waitUntil(
+        (s) =>
+          s.residents.some(
+            (n) =>
+              n.port === s.location &&
+              n.role === role &&
+              Math.hypot(n.x - s.x, n.y - s.y) < 55,
+          ),
+        18,
+      );
+      await page.locator("#interact-button").click();
+    }
+    async function leave() {
+      await panel("port");
+      await page
+        .locator('[data-action="navigate"][data-param="station-airlock"]')
+        .click();
+      await page.waitForTimeout(9000);
+      await page.locator("#interact-button").click();
+      await panel("port");
+      await page
+        .locator('[data-action="navigate"][data-param="ship-airlock"]')
+        .click();
+      await page.waitForTimeout(2500);
+      await page.locator("#interact-button").click();
+      if ((await read()).mode !== "interior")
+        throw Error("Failed to return physically into ship");
+      await module("cockpit");
+      await panel("port");
+      await page.locator('[data-action="releaseDock"]').click();
+      await close();
+      if ((await read()).docking.phase !== "none")
+        throw Error("Magnetic clamps not released");
+    }
+    await page.locator('[data-action="scan"]').click();
+    await dock("0-s");
+    await panel("trade");
     if (
-      !(await page.locator("#system-name").innerText()).includes(
-        "СВОБОДНЫЙ ПОЛЁТ",
+      await page.locator('[data-action="buy"][data-param="iron"]').isEnabled()
+    )
+      throw Error("Remote market transaction exposed");
+    await close();
+    await visit("bar");
+    await page.locator('[data-action="askLore"]').click();
+    await close();
+    s = await read();
+    if (
+      !s.codex.some((e) => e.includes("WELCOME BACK")) ||
+      !s.residents.some(
+        (n) => n.role === "bar" && n.met && n.memories.length >= 2,
       )
     )
-      throw new Error("Free play unavailable after ending reload");
-    if (errors.length) throw new Error(errors.join("\n"));
+      throw Error("Lore conversation/memory missing");
+    await visit("contracts");
+    await panel("quests");
+    await page.locator('[data-action="accept"][data-param="0-mining"]').click();
+    await page.locator('[data-action="claim"][data-param="0-mining"]').click();
+    await page
+      .locator('[data-action="accept"][data-param="0-delivery"]')
+      .click();
+    if (
+      await page
+        .locator('[data-action="claim"][data-param="0-delivery"]')
+        .isEnabled()
+    )
+      throw Error("Freight claim allowed at origin");
+    await close();
+    await visit("trade");
+    await panel("trade");
+    await page.locator('[data-action="buy"][data-param="iron"]').click();
+    await close();
+    await visit("tech");
+    await panel("tech");
+    await page
+      .locator('[data-action="upgrade"][data-param="shield-0"]')
+      .click();
+    await panel("ship");
+    await page.locator('[data-action="service"]').click();
+    s = await read();
+    if (!s.maintenance || s.maintenance.progress !== 0)
+      throw Error("Engineering still instant");
+    const engineer = s.residents.find((n) => n.id === s.maintenance.worker),
+      startY = engineer.y;
+    await page.waitForTimeout(4000);
+    s = await read();
+    if (s.residents.find((n) => n.id === engineer.id).y === startY)
+      throw Error("Engineer did not walk");
+    await page.screenshot({ path: `test-results/${name}-station.png` });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator('[data-action="continue"]').click();
+    s = await read();
+    if (!s.maintenance) throw Error("Reload lost active engineer job");
+    await waitUntil((s) => s.maintenance === null, 140);
     console.log(
-      `${name}: PASS New Game → delivery/passengers → save/reload → earned upgrades → five real bosses → saved ending → free play`,
+      `${name}: station NPCs, lore, physical engineer and reload passed`,
+    );
+    await panel("encounters");
+    await page
+      .locator(
+        '[data-action="encounterChoice"][data-param="inspection:0|declare"]',
+      )
+      .click();
+    await page.screenshot({ path: `test-results/${name}-encounters.png` });
+    await close();
+    s = await read();
+    if (s.encounters.find((e) => e.id === "inspection:0").choice !== "declare")
+      throw Error("Inspection decision missing");
+    await leave();
+    await panel("galaxy");
+    await page.locator('[data-system="1"]').click();
+    await page.locator('[data-action="jump"][data-param="1"]').click();
+    await dock("1-s");
+    await visit("contracts");
+    await panel("quests");
+    await page
+      .locator('[data-action="claim"][data-param="0-delivery"]')
+      .click();
+    await close();
+    s = await read();
+    if (!s.contracts.find((q) => q.id === "0-delivery").complete)
+      throw Error("Real freight delivery failed");
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator('[data-action="continue"]').click();
+    s = await read();
+    if (
+      s.version !== 6 ||
+      s.location !== "1-s" ||
+      s.bosses.length !== 0 ||
+      !s.chronicle.length
+    )
+      throw Error("Saved independent captain journey mismatch");
+    await page.screenshot({ path: `test-results/${name}-journey.png` });
+    if (errors.length) throw Error(errors.join("\n"));
+    console.log(
+      `${name}: PASS New Game → physical repair/docking/airlocks → named NPC/lore → engineer walk/repair/reload → departure → actual freight → saved sandbox without boss progression`,
     );
   } catch (e) {
-    failures.push(`${name}: ${e.message}`);
-    await page.screenshot({ path: `test-results/${name}-failure.png` });
-    console.error(failures.at(-1));
+    const context=await page.evaluate(()=>{const raw=localStorage.getItem("starfall-save-v1-0");if(!raw)return null;const s=JSON.parse(JSON.parse(raw).payload);return {mode:s.mode,x:s.x,y:s.y,docking:s.docking,activity:s.activity,logs:s.logs.slice(0,3)};}).catch(()=>null);
+    failures.push(`${name}: ${e.stack || e}\nState: ${JSON.stringify(context)}`);
+    await page
+      .screenshot({ path: `test-results/${name}-failure.png` })
+      .catch(() => {});
   } finally {
     await browser.close();
   }
 }
-if (failures.length) process.exitCode = 1;
+if (failures.length) {
+  console.error(failures.join("\n\n"));
+  process.exitCode = 1;
+}

@@ -2,6 +2,13 @@ import { boardDerelict, externalRepair, salvageBoard } from "./boarding";
 import { unloadResources } from "./inventory";
 import { escorts, escortInJumpRange, jumpEscorts } from "./escort";
 import { beginEncounter } from "./encounters";
+import { captureDock, emptyDock } from "./docking";
+import {
+  activeResidents,
+  ensureResidents,
+  talkResident,
+  serviceAvailable,
+} from "./residents";
 import { biomes, chapters, events, items } from "../data/catalog";
 import {
   generateGalaxy,
@@ -43,6 +50,10 @@ export function enterSpace(s: State) {
   if (!s.orbit.active) populateEnemies(s);
   s.orbit.active = true;
 }
+export function boardOwnShip(s: State) {
+  if(s.mode!=="space")return false;
+  s.orbit={x:s.x,y:s.y,angle:s.angle,active:true};s.mode="interior";s.x=0;s.y=-150;s.vx=0;s.vy=0;return true;
+}
 export function populateEnemies(s: State) {
   const rng = random(hash(s.seed + s.system + "enemies"));
   s.enemies = Array.from({ length: 1 + Math.floor(s.system / 5) }, (_, i) => ({
@@ -80,9 +91,22 @@ export function nearest(s: State) {
   if (s.mode === "derelict")
     return { id: "terminal", name: "Бортовой терминал", x: 0, y: 0 };
   if (s.mode === "interior")
-    return s.ship.modules
+    return [
+      ...s.ship.modules,
+      ...(s.physical
+        ? [{ id: "weld", name: "Сварочный пост корпуса", x: 150, y: -150 }]
+        : []),
+    ]
       .slice()
       .sort((a, b) => distance(s, a) - distance(s, b))[0];
+  if (s.mode === "station")
+    if (s.physical)
+      return [
+        ...s.ship.modules.filter((m) => m.id !== "airlock"),
+        { id: "ship-airlock", name: "Корабельный шлюз", x: 0, y: 300 },
+        { id: "station-airlock", name: "Станционный шлюз", x: 0, y: 480 },
+        ...activeResidents(s),
+      ].sort((a, b) => distance(s, a) - distance(s, b))[0];
   if (s.mode === "station")
     return stationPoints
       .slice()
@@ -130,7 +154,16 @@ export function contextLabel(s: State) {
         : n.id === "airlock" && s.intro >= 4
           ? "Выход в открытый космос"
           : `Осмотреть: ${n.name}`;
-  if (s.mode === "station") return n.name;
+  if (s.mode === "station")
+    return s.physical
+      ? n.id === "station-airlock"
+        ? `${s.docking.stationDoor ? "Закрыть" : "Открыть"} дверь станции`
+        : n.id === "ship-airlock"
+          ? "Закрыть корабельный шлюз изнутри"
+          : activeResidents(s).some((r) => r.id === n.id)
+            ? `Поговорить: ${n.name}`
+            : `Осмотреть: ${n.name}`
+      : n.name;
   if (s.mode === "surface")
     return d < 85 ? `Взаимодействовать: ${n.name}` : `Подойти: ${n.name}`;
   const c = n as Contact;
@@ -184,6 +217,10 @@ export function scan(s: State) {
   }
 }
 export function jump(s: State, id: number) {
+  if (s.physical && s.docking.phase !== "none") {
+    log(s, "Отмените запрос причала или завершите отстыковку перед переходом.");
+    return false;
+  }
   if (
     s.mode !== "space" ||
     id === s.system ||
@@ -249,7 +286,12 @@ export function interact(s: State): string | undefined {
     label = "";
   if (s.mode === "interior" && distance(s, n) <= 70) {
     const m = s.ship.modules.find((m) => m.id === n.id)!;
-    if (s.intro === 0 && n.id === "fabricator") {
+    if (n.id === "weld") {
+      if (s.ship.hull < shipStats(s).hull && quantity(s, "parts")) {
+        duration = 5;
+        label = "Свариваете пластины корпуса";
+      }
+    } else if (s.intro === 0 && n.id === "fabricator") {
       duration = 1.8;
       label = "Собираете инструменты";
     } else if (
@@ -279,6 +321,7 @@ export function interact(s: State): string | undefined {
   }
   if (!duration) return finishInteraction(s);
   s.activity = {
+    operation: "interact",
     target: n.id,
     mode: s.mode,
     system: s.system,
@@ -308,7 +351,13 @@ export function tickInteraction(s: State, dt: number) {
   a.elapsed += dt;
   if (a.elapsed >= a.duration) {
     s.activity = null;
-    finishInteraction(s);
+    if (a.operation === "clinic") {
+      if (serviceAvailable(s, "medical") && s.credits >= 120) {
+        s.credits -= 120;
+        s.health = healthy();
+        log(s, "Врач завершил лечение и выписал препараты. Оплачено CR 120.");
+      }
+    } else finishInteraction(s);
     remember(s, s.logs[0]);
   }
 }
@@ -319,6 +368,15 @@ function finishInteraction(s: State): string | undefined {
   if (s.mode === "interior") {
     if (d > 95) {
       log(s, `Подойдите к отсеку «${n.name}».`);
+      return;
+    }
+    if (n.id === "weld") {
+      if (s.ship.hull >= shipStats(s).hull || !consume(s, "parts")) {
+        log(s, "Нужен повреждённый корпус и ремкомплект.");
+        return;
+      }
+      s.ship.hull = Math.min(shipStats(s).hull, s.ship.hull + 25);
+      log(s, "Сварочный ремонт завершён: +25 корпуса.");
       return;
     }
     const m = s.ship.modules.find((m) => m.id === n.id)!;
@@ -381,6 +439,26 @@ function finishInteraction(s: State): string | undefined {
       return;
     }
     if (n.id === "airlock" && s.intro >= 4) {
+      if (
+        s.physical &&
+        s.docking.phase !== "none" &&
+        s.docking.phase !== "requested"
+      ) {
+        if (s.docking.phase !== "ready") {
+          log(s, "Шлюз заблокирован до выравнивания давления.");
+          return;
+        }
+        s.docking.shipDoor = true;
+        s.mode = "station";
+        s.location = s.docking.port!.location;
+        ensureResidents(s);
+        beginEncounter(s, "inspection");
+        log(
+          s,
+          "Корабельная дверь открыта. Пройдите по тоннелю к станционному шлюзу.",
+        );
+        return;
+      }
       s.mode = "eva";
       s.x = s.orbit.x;
       s.y = s.orbit.y + 60;
@@ -396,6 +474,43 @@ function finishInteraction(s: State): string | undefined {
         : "ship";
   }
   if (s.mode === "station") {
+    if (s.physical) {
+      if (d > 70) {
+        log(s, "Подойдите к двери или человеку на 70 м.");
+        return;
+      }
+      if (n.id === "station-airlock") {
+        s.docking.stationDoor = !s.docking.stationDoor;
+        log(
+          s,
+          s.docking.stationDoor
+            ? "Дверь станции открыта. Войдите в центральную галерею."
+            : "Дверь станции закрыта.",
+        );
+        return;
+      }
+      if (n.id === "ship-airlock") {
+        if (s.y > 290) {
+          log(s, "Войдите внутрь корабля, чтобы закрыть внутреннюю дверь.");
+          return;
+        }
+        s.docking.shipDoor = false;
+        s.mode = "interior";
+        s.location = "";
+        log(s, "Корабельная дверь закрыта. Идите в кабину для отстыковки.");
+        return;
+      }
+      if (activeResidents(s).some((r) => r.id === n.id)) {
+        talkResident(s, n.id);
+        return "dialogue";
+      }
+      if (s.y < 290) {
+        s.mode = "interior";
+        s.location = "";
+        return finishInteraction(s);
+      }
+      return;
+    }
     if (d > 95) {
       log(s, "Подойдите к NPC или шлюзу.");
       return;
@@ -531,6 +646,10 @@ function finishInteraction(s: State): string | undefined {
     return;
   }
   if (c.kind === "station" || c.kind === "outpost") {
+    if (s.physical) {
+      captureDock(s, c.id);
+      return;
+    }
     if (s.reputation[c.faction] < -60) {
       log(s, "Фракция отказывает в стыковке. Улучшите репутацию.");
       return;
@@ -596,18 +715,20 @@ function finishInteraction(s: State): string | undefined {
   }
 }
 export function launchBoss(s: State) {
+  const region = s.physical ? Math.floor(s.system / 5) : s.chapter;
   if (
     s.mode !== "space" ||
     s.chapter >= 5 ||
-    !s.evidence.includes(s.chapter) ||
-    Math.floor(s.system / 5) !== s.chapter ||
+    !s.evidence.includes(region) ||
+    s.bosses.includes(region) ||
+    (!s.physical && Math.floor(s.system / 5) !== s.chapter) ||
     s.enemies.some((e) => e.boss)
   )
     return false;
-  const c = chapters[s.chapter];
-  const hp = 400 + s.chapter * 230;
+  const c = chapters[region];
+  const hp = 400 + region * 230;
   const boss: Enemy = {
-    id: `boss-${s.chapter}`,
+    id: `boss-${region}`,
     name: c.boss,
     x: s.x + 650,
     y: s.y - 100,
@@ -616,7 +737,7 @@ export function launchBoss(s: State) {
     angle: Math.PI,
     hp,
     maxHp: hp,
-    shield: s.chapter * 35,
+    shield: region * 35,
     cooldown: 3,
     kind: c.type,
     phase: 1,
@@ -728,6 +849,14 @@ export function recover(s: State) {
   s.vy = 0;
   s.enemies = [];
   s.projectiles = [];
+  s.activity=null;
+  if(s.physical) {
+    const port=contacts(s).find(c=>c.kind==="station")!;
+    s.mode="interior";s.location="";s.y=260;s.maintenance=null;
+    s.docking={...emptyDock(),port:{system:s.system,location:port.id},phase:"ready",pressure:1};
+    s.orbit={x:port.x+port.radius+48,y:port.y,angle:Math.PI,active:true};ensureResidents(s,port.id);
+    remember(s,"St. Lazarus доставила капитана и корабль к причалу. Удержана плата за эвакуацию.");
+  }
   log(s, "Спасатели доставили вас в порт. Удержана плата за эвакуацию.");
 }
 export function canUseSupply(s: State, id: string) {
@@ -740,7 +869,7 @@ export function canUseSupply(s: State, id: string) {
         : id === "ammo"
           ? true
           : id === "parts"
-            ? s.ship.hull < shipStats(s).hull
+            ? !s.physical && s.ship.hull < shipStats(s).hull
             : id === "probe"
               ? generateGalaxy(s.seed).some(
                   (sys) =>

@@ -7,7 +7,7 @@
 - `src/scenes`: drawing of space, planet surfaces and compartment interiors. Only current system is simulated.
 - `src/input`: keyboard and pointer/touch controls with cancellation handling.
 - `src/ui`: menus and telemetry, event-driven updates with limited HUD frequency.
-- `src/save`: format 4 with explicit format-1/format-2/format-3 migrations; three validated, checksum-protected localStorage slots with last-good backups and JSON import/export. Storage keys retain `v1` for browser compatibility.
+- `src/save`: format 6 with explicit format-1–5 migrations; three validated, checksum-protected localStorage slots with last-good backups and JSON import/export. Storage keys retain `v1` for browser compatibility.
 - `src/audio`: user-gesture-initialized Web Audio synthesis.
 - `tests`: meaningful rules, deterministic generation and campaign progression.
 
@@ -19,4 +19,6 @@ Mission manifests are separate from disposable item pools and reserve cargo weig
 
 ## Rework foundation
 
-MASTER_REWORK.md supersedes ending-first priorities. `core/encounters.ts` + `data/encounters.ts` own saved choices, preflight atomic capacity and once-only effects. `State.activity` is simulated timed work, cancelled by leaving range; only completion spends parts. `State.chronicle` stores up to 1000 significant results. Save 5 migration initializes new fields and appends Institute reputation; v1 storage keys remain intact. `physical=false` preserves old published saves, while New Game uses physical interactions and optional investigation.
+MASTER_REWORK.md supersedes ending-first priorities. `core/encounters.ts` + `data/encounters.ts` own saved choices, preflight atomic capacity and once-only effects. `State.activity` is simulated timed work, cancelled by leaving range; only completion spends parts. `State.chronicle` stores up to 1000 significant results. Save 5 migration initialized new fields and appends Institute reputation; v1 storage keys remain intact. `physical=false` preserves old published saves, while New Game uses physical interactions and optional investigation.
+
+Physical port checkpoint: core/docking.ts owns permission/envelope/capture/pressure/gates. world/stations.ts supplies deterministic shared collision/render floors with a bounded cache. core/residents.ts owns saved identity, physical shifts, range-gated services and paid engineer jobs. Save 6 validates actors/jobs/gates and migrates v5 station occupancy into a ready moored ship. Legacy saves stay physical=false. Menus pause simulation; engineering resumes when closed.

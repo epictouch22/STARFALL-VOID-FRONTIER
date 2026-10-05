@@ -6,4 +6,4 @@ Docking: hail a discovered port → permission/assigned berth → approach under
 
 Stations use seeded connected rooms, corridors and identifiable facilities. Market, doctor, contracts and engineering require physical proximity. Interior geometry constrains movement; floor/walls/doors and markers must agree with the collision map. PC and iPhone share the same rules.
 
-Long-term target: explicit door states, compartment gases, tool equipment, world cargo and workers; do not claim these future systems from a progress bar alone.
+Implemented: explicit door states and blocked traversal, timed clinic/welding work, paid physical engineer with saved partial work. Future: gases by compartment, equippable tools, physical world cargo. Current ship oxygen/fire/breach is a coarser shared model.

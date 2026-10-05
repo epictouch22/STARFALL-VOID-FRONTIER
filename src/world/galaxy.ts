@@ -92,12 +92,24 @@ export function generateGalaxy(seed: string): System[] {
     contacts.push({
       id: `${id}-s`,
       kind: "station",
-      name: `Порт ${name}`,
+      name:
+        (
+          {
+            0: "KHEPRI-7",
+            1: "Helix Prime / орбитальный сектор",
+            2: "New Geneva / причал 12",
+            5: "Liberty’s End",
+            9: "Black Harbor",
+            14: "Pilgrim",
+            19: "Veil-9",
+            24: "Calypso / внешний карантин",
+          } as Record<number, string>
+        )[id] ?? `Порт ${name}`,
       x: 300,
       y: -120,
       radius: 55,
       biome: 0,
-      faction: id % 3,
+      faction: id % 6,
       resource: "iron",
     });
     if (id % 2 === 0)

@@ -26,3 +26,5 @@ The mandate to save the galaxy and defeat five sequential levels. Early lore spo
 8. Physical freight and contracts; 9. surface regions/settlements; 10. art/audio; 11. long progression; 12. 1/5/20-hour balance simulations.
 
 Each stable checkpoint must pass typecheck, tests, production build, production browser acceptance and publish to main. PROGRESS.md records the exact achieved subset and next task.
+
+Checkpoint 0.6: phases 1 and 2 foundation complete and browser-tested; phase 3 named staff/movement/memory foundation complete, recruitable crew remains NEXT. Later phases are not complete.

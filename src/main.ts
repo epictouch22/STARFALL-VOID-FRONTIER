@@ -25,6 +25,7 @@ import {
   recover,
   useSupply,
   populateEnemies,
+  boardOwnShip,
 } from "./core/actions";
 import {
   trade,
@@ -46,6 +47,12 @@ import { upgrades } from "./data/catalog";
 import { items } from "./data/catalog";
 import { transfer, unloadResources } from "./core/inventory";
 import { resolveEncounter } from "./core/encounters";
+import { requestDock, berth, releaseDock, emptyDock } from "./core/docking";
+import {
+  activeResidents,
+  talkResident,
+  serviceAvailable,
+} from "./core/residents";
 import type { State } from "./core/types";
 let state: State = newGame(),
   playing = false,
@@ -54,6 +61,7 @@ let last = performance.now(),
   accumulator = 0,
   hudClock = 0,
   saveClock = 0;
+let walkingRoute: { x: number; y: number }[] = [];
 const sound = new SoundManager();
 const ui = new Interface(() => state, action);
 let renderer = new Renderer(
@@ -92,18 +100,26 @@ function start(s: State) {
   persist();
 }
 function close() {
+  walkingRoute = [];
   ui.close();
   input.reset();
   input.enabled = playing;
 }
 function open(panel: string) {
+  walkingRoute = [];
   input.reset();
   input.enabled = false;
   ui.open(panel);
 }
 function navigate(id: string) {
   let target: { x: number; y: number; dock?: boolean } | undefined;
-  if (state.mode === "interior")
+  if (state.mode === "station" && state.physical) {
+    if (id === "station-airlock") target = { x: 0, y: 440 };
+    else if (id === "ship-airlock") target = { x: 0, y: 270 };
+    else
+      target = activeResidents(state).find((n) => n.id === id || n.role === id);
+    if (!target) target = state.ship.modules.find((m) => m.id === id);
+  } else if (state.mode === "interior")
     target = state.ship.modules.find((m) => m.id === id);
   else if (state.mode === "space") {
     const c = contacts(state).find((c) => c.id === id);
@@ -112,7 +128,7 @@ function navigate(id: string) {
         x:
           c.x +
           (c.kind === "station" || c.kind === "outpost"
-            ? c.radius + 70
+            ? c.radius + (state.physical ? 48 : 70)
             : c.kind === "planet"
               ? c.radius + 70
               : 0),
@@ -122,7 +138,20 @@ function navigate(id: string) {
   }
   if (target) {
     close();
-    input.controls.target = target;
+    if (
+      state.mode === "station" &&
+      state.physical &&
+      Math.abs(target.y - state.y) > 30
+    ) {
+      const blocked =
+        !state.docking.stationDoor && state.y < 480 && target.y > 480;
+      walkingRoute = [
+        { x: 0, y: state.y },
+        { x: 0, y: blocked ? 440 : target.y },
+        ...(blocked ? [] : [{ x: target.x, y: target.y }]),
+      ];
+      input.controls.target = walkingRoute.shift()!;
+    } else input.controls.target = target;
     input.controls.aim = null;
     ui.toast("Автопилот включён. Движение стиком или WASD отменяет маршрут.");
   }
@@ -169,6 +198,26 @@ function action(name: string, param = "") {
     case "close":
       close();
       return;
+    case "requestDock":
+      if (requestDock(state, param)) persist();
+      ui.toast(state.logs[0]);
+      break;
+    case "releaseDock":
+      if (releaseDock(state)) persist();
+      ui.toast(state.logs[0]);
+      break;
+    case "cancelDock":
+      if (state.docking.phase === "requested") {
+        state.docking = emptyDock();
+        persist();
+        ui.toast("Запрос причала отменён.");
+      }
+      break;
+    case "askLore":
+      talkResident(state, param, true);
+      persist();
+      ui.toast(state.logs[0]);
+      break;
     case "save":
       persist(true);
       return;
@@ -212,6 +261,7 @@ function action(name: string, param = "") {
           populateEnemies(state);
         persist();
       }
+      if (state.physical) persist();
       if (panel) open(panel);
       else ui.toast(state.logs[0]);
       break;
@@ -267,17 +317,7 @@ function action(name: string, param = "") {
         break;
       }
       if (state.mode === "space") {
-        state.orbit = {
-          x: state.x,
-          y: state.y,
-          angle: state.angle,
-          active: true,
-        };
-        state.mode = "interior";
-        state.x = 0;
-        state.y = -150;
-        state.vx = 0;
-        state.vy = 0;
+        boardOwnShip(state);
         input.reset();
       } else if (state.mode === "eva") {
         if (
@@ -479,10 +519,39 @@ function action(name: string, param = "") {
       }
       break;
     case "service":
-      if (serviceShip(state)) ui.toast(state.logs[0]);
+      if (serviceShip(state)) {
+        persist();
+        if (state.physical) close();
+        ui.toast(state.logs[0]);
+      }
       break;
     case "clinic":
-      if (state.mode === "station" && state.credits >= 120) {
+      if (
+        state.physical &&
+        serviceAvailable(state, "medical") &&
+        state.credits >= 120
+      ) {
+        const n = activeResidents(state).find((n) => n.role === "medical")!;
+        state.activity = {
+          operation: "clinic",
+          target: n.id,
+          mode: state.mode,
+          system: state.system,
+          location: state.location,
+          x: n.x,
+          y: n.y,
+          elapsed: 0,
+          duration: 10,
+          label: "Врач проводит лечение",
+        };
+        close();
+        ui.toast("Останьтесь возле врача на 10 секунд.");
+        persist();
+      } else if (
+        !state.physical &&
+        state.mode === "station" &&
+        state.credits >= 120
+      ) {
         state.credits -= 120;
         state.health = healthy();
         ui.toast("Полное лечение выполнено");
@@ -652,6 +721,10 @@ function frame(now: number) {
   last = now;
   if (playing && !ui.panel && !hidden) {
     input.update();
+    if (Math.hypot(input.controls.mx, input.controls.my) > 0.1)
+      walkingRoute = [];
+    if (!input.controls.target && walkingRoute.length)
+      input.controls.target = walkingRoute.shift()!;
     accumulator += delta;
     while (accumulator >= 1 / 60) {
       const cooldown = state.cooldown;

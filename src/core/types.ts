@@ -1,5 +1,7 @@
 import type { EscortShip } from "./escort";
 import type { Encounter } from "./encounters";
+import type { Docking } from "./docking";
+import type { Resident } from "./residents";
 export type Mode =
   "interior" | "space" | "surface" | "station" | "eva" | "derelict";
 export type Wound =
@@ -95,10 +97,20 @@ export type Contract = {
   mission: ContractMission | null;
 };
 export type State = {
-  version: 5;
+  version: 6;
+  docking: Docking;
+  residents: Resident[];
+  maintenance: {
+    port: string;
+    worker: string;
+    phase: "walking" | "working" | "returning";
+    progress: number;
+    duration: number;
+  } | null;
   encounters: Encounter[];
   physical: boolean;
   activity: {
+    operation: "interact" | "clinic";
     target: string;
     mode: Mode;
     system: number;

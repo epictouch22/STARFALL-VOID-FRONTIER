@@ -1,6 +1,7 @@
 import { ships, upgrades, items } from "../data/catalog";
 import type { State, Health } from "./types";
 import { inventoryWeight, inventorySlots, reservedCargo } from "./inventory";
+import { emptyDock } from "./docking";
 export function healthy(): Health {
   return {
     parts: [
@@ -23,7 +24,10 @@ export function healthy(): Health {
 }
 export function newGame(seed = "STARFALL", slot = 0, name = "Пилот"): State {
   return {
-    version: 5,
+    version: 6,
+    docking: emptyDock(),
+    residents: [],
+    maintenance: null,
     encounters: [],
     physical: true,
     activity: null,

@@ -243,7 +243,7 @@ describe("save v3 compatibility and guardrails", () => {
     delete legacy.health.stimulant;
     delete legacy.contracts[0].mission;
     const migrated = decode(oldSave(legacy, 2));
-    expect(migrated.version).toBe(5);
+    expect(migrated.version).toBe(6);
     expect(migrated.health.stimulant).toBe(0);
     expect(migrated.contracts[0].mission).toBeNull();
     expect(claimContract(migrated, "old-delivery")).toBe(true);
