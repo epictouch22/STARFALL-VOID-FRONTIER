@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { newGame, addItem, consume, quantity, weight } from "../src/core/state";
+import { canUseSupply, useSupply } from "../src/core/actions";
+import { recycleItem } from "../src/core/economy";
 import {
   acceptContract,
   claimContract,
@@ -235,7 +237,7 @@ describe("save v3 compatibility and guardrails", () => {
     delete legacy.health.stimulant;
     delete legacy.contracts[0].mission;
     const migrated = decode(oldSave(legacy, 2));
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated.health.stimulant).toBe(0);
     expect(migrated.contracts[0].mission).toBeNull();
     expect(claimContract(migrated, "old-delivery")).toBe(true);
@@ -256,6 +258,35 @@ describe("save v3 compatibility and guardrails", () => {
   });
 });
 describe("audited gameplay regressions", () => {
+  it("does not waste supplies when the corresponding reserve is full", () => {
+    const s = atPort();
+    s.ship.fuel = 100;
+    s.health.oxygen = 100;
+    s.health.hunger = 100;
+    s.ship.hull = 120;
+    const before = { ...s.inventory };
+    for (const id of ["fuel", "oxygen", "food", "parts"]) {
+      expect(canUseSupply(s, id)).toBe(false);
+      expect(useSupply(s, id)).toBe(false);
+    }
+    expect(s.inventory).toEqual(before);
+    s.ship.fuel = 65;
+    expect(useSupply(s, "fuel")).toBe(true);
+    expect(s.ship.fuel).toBe(95);
+  });
+  it("rolls back recycling instead of destroying an item when recovered material cannot fit", () => {
+    const s = atPort();
+    s.upgrades = ["cargo-3"];
+    s.mode = "surface";
+    s.pack = { gold: 35 };
+    const before = structuredClone(s);
+    expect(recycleItem(s, "bandage")).toBe(false);
+    expect(s).toEqual(before);
+    s.mode = "station";
+    expect(recycleItem(s, "iron")).toBe(false);
+    expect(recycleItem(s, "bandage")).toBe(true);
+    expect(s.inventory.iron).toBe(before.inventory.iron + 1);
+  });
   it("positive reputation improves both buy and sell prices without same-port arbitrage", () => {
     const s = atPort(),
       buy = price(s, "gold"),

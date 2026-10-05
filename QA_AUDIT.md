@@ -11,7 +11,7 @@ Read the five project documents, commits `2f3c304`, `829e36b`, `f3622ca`, actual
 | Introduction, movement, docking, landing, mining    | `actions.ts`, `simulation.ts`, `controller.ts`; rule tests and Chromium/WebKit UI acceptance exercise actual movement/interaction.                                                               |
 | Cargo, crafting, market, technologies, ship classes | `inventory.ts`, `economy.ts`, `catalog.ts`; capacity/rollback/trading/upgrade tests. Six to ten walkable compartments and class-dependent stats.                                                 |
 | EVA and hostile boarding                            | `boarding.ts`; projectile combat, terminal salvage and external-repair integration tests.                                                                                                        |
-| Local saves, backups, import/export, migration      | `storage.ts`; checksum, nested validation, corruption tests, browser reload check. Versions 1 and 2 migrate to 3 without changing storage keys.                                                  |
+| Local saves, backups, import/export, migration      | `storage.ts`; checksum, nested validation, corruption tests, browser reload check. Versions 1/2/3 migrate to 4 without changing storage keys.                                                    |
 | Five chapters, bosses, three endings, free play     | `actions.ts`, `simulation.ts`; all five bosses take real projectile damage and enter phases. Existing full-boss test preconfigures equipment; it was not evidence of an earned full playthrough. |
 | Touch controls and Safari engine compatibility      | Browser acceptance uses production output in Chromium and iPhone-sized WebKit, including pointer drags. Physical iPhone testing remains outstanding.                                             |
 
@@ -31,7 +31,7 @@ Read the five project documents, commits `2f3c304`, `829e36b`, `f3622ca`, actual
 - Fire, breaches, reactor/engine integrity and repair work; flooding, coolant, wiring networks and independent pressure volumes are absent.
 - Cave/wreck nodes have loot but no separate interiors, terrain collisions or distinct fauna/weather AI. No moons.
 - Factions influence prices, docking and one ending; NPCs reuse port identities and short dialogue. Faction mission chains, careers and richer histories are incomplete.
-- Delivery, passenger and rescue objectives are now journeys. Escort/evacuation chains, event choices and more varied objectives remain work.
+- Delivery, passenger and rescue objectives are now journeys. Physical escort has also been added, including convoy damage/failure. Evacuation chains, event choices and more varied objectives remain work.
 - Boarding yields salvage; captured vessels, targeted enemy compartments and merchant docking are absent.
 - Bosses have distinct attacks and three phases; weak points, hidden mini-bosses and legendary equipment are absent.
 - Inventory has two containers, weight, slots and transfers; drag-and-drop, dropped world containers and gear slots are absent.
@@ -43,3 +43,5 @@ Read the five project documents, commits `2f3c304`, `829e36b`, `f3622ca`, actual
 Unit fixtures configure states to isolate mechanics and do not prove normal progression. Browser acceptance uses New Game, actual UI actions, earned credits, flight, delivery, landing and first-boss combat without debug or save modification. The new campaign integration test also completes all five chapters with earned equipment and regular game actions. Full production UI acceptance has been extended through the ending and reload into free play. Do not describe the entire original brief as complete.
 
 Additional combat audit fixes: adaptive shielding now reduces shield charge consumption without leaking absorbed hits into hull; boarding/ground kills no longer count as ship bounties. Paid station service fully restores installed shields.
+
+Release 0.4 also fixes two inventory QA findings: recycling rolls back when material does not fit, and full reserves no longer consume supplies. Content counts, selectable difficulty and some appearance controls from the original brief remain unfulfilled.

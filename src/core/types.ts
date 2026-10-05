@@ -1,3 +1,4 @@
+import type { EscortShip } from "./escort";
 export type Mode =
   "interior" | "space" | "surface" | "station" | "eva" | "derelict";
 export type Wound =
@@ -67,8 +68,9 @@ export type ContractMission = {
   origin: MissionPort;
   destination: MissionPort;
   pickup: MissionPort | null;
-  stage: "pickup" | "delivery" | "done" | "cancelled";
+  stage: "pickup" | "delivery" | "done" | "cancelled" | "failed";
   manifest: { label: string; weight: number; slots: number };
+  escort: EscortShip | null;
 };
 export type Contract = {
   id: string;
@@ -80,7 +82,8 @@ export type Contract = {
     | "salvage"
     | "repair"
     | "passenger"
-    | "rescue";
+    | "rescue"
+    | "escort";
   title: string;
   item: string;
   target: number;
@@ -91,7 +94,7 @@ export type Contract = {
   mission: ContractMission | null;
 };
 export type State = {
-  version: 3;
+  version: 4;
   pack: Record<string, number>;
   quickSlots: string[];
   avatar: {

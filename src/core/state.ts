@@ -23,7 +23,7 @@ export function healthy(): Health {
 }
 export function newGame(seed = "STARFALL", slot = 0, name = "Пилот"): State {
   return {
-    version: 3,
+    version: 4,
     pack: { bandage: 2, oxygen: 1 },
     quickSlots: ["fuel", "oxygen", "food", "ammo"],
     avatar: {

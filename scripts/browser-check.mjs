@@ -71,6 +71,7 @@ for (const [name, browserType, options] of [
         .isEnabled()
     )
       throw new Error("Delivery can be claimed at origin");
+    await page.locator('[data-action="accept"][data-param="0-escort"]').click();
     await page.screenshot({ path: `test-results/${name}-missions.png` });
     await page
       .locator('.menu-tabs [data-action="panel"][data-param="settings"]')
@@ -83,8 +84,8 @@ for (const [name, browserType, options] of [
     if (
       state.intro !== 4 ||
       state.mode !== "station" ||
-      state.contracts.length !== 3 ||
-      state.version !== 3
+      state.contracts.length !== 4 ||
+      state.version !== 4
     )
       throw new Error("Saved progress mismatch");
     await page.reload({ waitUntil: "networkidle" });
@@ -124,6 +125,7 @@ for (const [name, browserType, options] of [
         .isEnabled()
     )
       throw new Error("Duplicate delivery reward available");
+    await page.locator('[data-action="claim"][data-param="0-escort"]').click();
     await page.screenshot({ path: `test-results/${name}-delivery.png` });
     await page.locator('.menu-footer [data-action="close"]').click();
     await page.locator('.header-actions [data-action="save"]').click();
@@ -134,7 +136,7 @@ for (const [name, browserType, options] of [
     );
     if (
       !delivery.contracts
-        .filter((q) => ["delivery", "passenger"].includes(q.type))
+        .filter((q) => ["delivery", "passenger", "escort"].includes(q.type))
         .every((q) => q.complete && q.mission.stage === "done")
     )
       throw new Error("Mission state did not persist");
@@ -289,14 +291,12 @@ for (const [name, browserType, options] of [
         )
       )
         throw new Error(`Chapter ${chapter} landing failed`);
-      await page
-        .locator("#world")
-        .click({
-          position: {
-            x: size.width / 2 + 320 * scale,
-            y: size.height / 2 - 200 * scale,
-          },
-        });
+      await page.locator("#world").click({
+        position: {
+          x: size.width / 2 + 320 * scale,
+          y: size.height / 2 - 200 * scale,
+        },
+      });
       await page.waitForTimeout(3400);
       await page.locator("#interact-button").click();
       await page.locator('[data-action="board"]').click();

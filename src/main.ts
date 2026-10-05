@@ -29,6 +29,7 @@ import {
 import {
   trade,
   craft,
+  recycleItem,
   buyUpgrade,
   buyShip,
   serviceShip,
@@ -315,7 +316,8 @@ function action(name: string, param = "") {
             ? "Лечение выполнено"
             : "Нет подходящего ранения",
         );
-      } else useSupply(state, id);
+      } else if (!useSupply(state, id))
+        ui.toast("Припас не нужен или отсутствует.");
       break;
     }
     case "quickAssign": {
@@ -359,8 +361,11 @@ function action(name: string, param = "") {
       }
       break;
     case "recycle":
-      if (has(state, "recycle") && param !== "iron" && consume(state, param))
-        addItem(state, "iron", 1);
+      ui.toast(
+        recycleItem(state, param)
+          ? state.logs[0]
+          : "Не хватает места или предмет нельзя разобрать.",
+      );
       break;
     case "craft":
       ui.toast(

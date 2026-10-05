@@ -10,7 +10,12 @@ import {
   biomes,
 } from "../data/catalog";
 import { generateGalaxy } from "../world/galaxy";
-import { contextLabel, currentPlanet, contacts } from "../core/actions";
+import {
+  contextLabel,
+  currentPlanet,
+  contacts,
+  canUseSupply,
+} from "../core/actions";
 import { has, shipStats, weight, quantity } from "../core/state";
 import {
   inventoryWeight,
@@ -25,6 +30,7 @@ import {
   destinationName,
   missionTarget,
 } from "../core/economy";
+import { escorts } from "../core/escort";
 import { slots } from "../save/storage";
 export const esc = (text: unknown) =>
   String(text).replace(
@@ -136,7 +142,16 @@ export class Interface {
     document.getElementById("system-name")!.innerHTML =
       `<span>${esc(sys.name)} <i> / ${esc(regions[sys.region])}</i></span><small>${s.mode === "space" ? "СВОБОДНЫЙ ПОЛЁТ" : s.mode === "interior" ? "НА БОРТУ" : s.mode === "surface" ? "ПОВЕРХНОСТЬ" : s.mode === "station" ? "СТЫКОВКА" : s.mode === "eva" ? "ВНЕ КОРАБЛЯ" : "АБОРДАЖ"} · ${Math.round(Math.hypot(s.vx, s.vy))} м/с</small>`;
     document.getElementById("telemetry")!.innerHTML =
-      `<div class="panel-label">${esc(s.ship.name)} <span>●</span></div>${this.gauge("КОРПУС", s.ship.hull, stats.hull, "#89dce1")}${stats.shield ? this.gauge("ЩИТ", s.ship.shield, stats.shield, "#ad9be2") : ""}${this.gauge("КИСЛОРОД", s.health.oxygen, stats.oxygen, s.health.oxygen < 25 ? "#ed8b81" : "#a5becc")}${this.gauge("ТОПЛИВО", s.ship.fuel, 100, "#e9ba78")}${this.gauge("ЭНЕРГИЯ", s.ship.energy, stats.energy, "#a1bad3")}<div class="telemetry-footer"><span>${s.ship.ammo} ПАТР.</span><strong>₡ ${s.credits.toLocaleString("ru")}</strong></div>`;
+      `<div class="panel-label">${esc(s.ship.name)} <span>●</span></div>${this.gauge("КОРПУС", s.ship.hull, stats.hull, "#89dce1")}${stats.shield ? this.gauge("ЩИТ", s.ship.shield, stats.shield, "#ad9be2") : ""}${this.gauge("КИСЛОРОД", s.health.oxygen, stats.oxygen, s.health.oxygen < 25 ? "#ed8b81" : "#a5becc")}${this.gauge("ТОПЛИВО", s.ship.fuel, 100, "#e9ba78")}${this.gauge("ЭНЕРГИЯ", s.ship.energy, stats.energy, "#a1bad3")}${escorts(
+        s,
+      )
+        .filter((e) => e.ship.system === s.system)
+        .map((e) =>
+          this.gauge("КОНВОЙ", e.ship.hull, e.ship.maxHull, "#8bd5a2"),
+        )
+        .join(
+          "",
+        )}<div class="telemetry-footer"><span>${s.ship.ammo} ПАТР.</span><strong>₡ ${s.credits.toLocaleString("ru")}</strong></div>`;
     const chapter = chapters[Math.min(s.chapter, 4)];
     const intro = [
       "Найдите инструменты у верстака справа внизу. Подойдите и нажмите E или кнопку действия.",
@@ -195,10 +210,10 @@ export class Interface {
         .filter(([, n]) => n > 0)
         .map(
           ([id, n]) =>
-            `<article class="item-card"><div class="item-icon" style="color:${items[id].color}">${items[id].kind === "resource" ? "⬡" : items[id].kind === "medical" ? "✚" : "▣"}</div><div><h4>${esc(items[id].name)} <b>×${n}</b></h4><p>${esc(items[id].description)}</p><small>${(items[id].weight * n).toFixed(1)} кг / ${Math.ceil(n / 99)} слот</small></div><div class="item-actions">${items[id].kind === "medical" ? button("Лечить", "panel", "medical") : items[id].kind === "supply" ? button("Использовать", "use", id) : ""}${button(packed ? "На корабль" : "В скафандр", "transfer", `${packed ? "cargo" : "pack"}:${id}`, !["space", "station", "interior"].includes(s.mode))}${items[id].kind !== "resource" ? button("На панель", "quickAssign", id) : ""}${has(s, "recycle") ? button("Разобрать", "recycle", id) : ""}${button("Выбросить 1", "discard", `${packed ? "pack" : "cargo"}:${id}`)}</div></article>`,
+            `<article class="item-card"><div class="item-icon" style="color:${items[id].color}">${items[id].kind === "resource" ? "⬡" : items[id].kind === "medical" ? "✚" : "▣"}</div><div><h4>${esc(items[id].name)} <b>×${n}</b></h4><p>${esc(items[id].description)}</p><small>${(items[id].weight * n).toFixed(1)} кг / ${Math.ceil(n / 99)} слот</small></div><div class="item-actions">${items[id].kind === "medical" ? button("Лечить", "panel", "medical") : items[id].kind === "supply" ? button("Использовать", "use", id, !canUseSupply(s, id)) : ""}${button(packed ? "На корабль" : "В скафандр", "transfer", `${packed ? "cargo" : "pack"}:${id}`, !["space", "station", "interior"].includes(s.mode))}${items[id].kind !== "resource" ? button("На панель", "quickAssign", id) : ""}${has(s, "recycle") ? button("Разобрать", "recycle", id, id === "iron") : ""}${button("Выбросить 1", "discard", `${packed ? "pack" : "cargo"}:${id}`)}</div></article>`,
         )
         .join("");
-    return `<div class="section-intro"><h3>Быстрые припасы</h3><p>Клавиши 1–4 на ПК. «На панель» назначает предмет в следующий слот.</p></div><div class="supply-row">${s.quickSlots.map((id, i) => button(`${i + 1} · ${items[id].name} ×${quantity(s, id)}`, "quick", String(i), !quantity(s, id))).join("")}</div><div class="section-intro"><h3>Скафандр</h3><p>${inventoryWeight(s.pack).toFixed(1)} / 35 кг · ${inventorySlots(s.pack)} / 12 слотов. Добыча на планетах попадает сюда. При взлёте ресурсы выгружаются в корабль, если есть место.</p></div><div class="item-grid">${cards(s.pack, true) || '<p class="muted">Контейнер пуст.</p>'}</div><div class="section-intro"><h3>Грузовой отсек</h3><p>${weight(s).toFixed(1)} / ${shipStats(s).cargo} кг · ${inventorySlots(s.inventory) + reservedCargo(s).slots} / 40 слотов. Стак: до 99 единиц на слот.</p></div><div class="item-grid">${cards(s.inventory, false)}</div><div class="section-intro"><h3>Контрактный манифест</h3><p>${reservedCargo(s).weight} кг зарезервировано. Эти грузы защищены от расходования.</p></div><div class="list">${
+    return `<div class="section-intro"><h3>Быстрые припасы</h3><p>Клавиши 1–4 на ПК. «На панель» назначает предмет в следующий слот.</p></div><div class="supply-row">${s.quickSlots.map((id, i) => button(`${i + 1} · ${items[id].name} ×${quantity(s, id)}`, "quick", String(i), !quantity(s, id) || (items[id].kind === "supply" && !canUseSupply(s, id)))).join("")}</div><div class="section-intro"><h3>Скафандр</h3><p>${inventoryWeight(s.pack).toFixed(1)} / 35 кг · ${inventorySlots(s.pack)} / 12 слотов. Добыча на планетах попадает сюда. При взлёте ресурсы выгружаются в корабль, если есть место.</p></div><div class="item-grid">${cards(s.pack, true) || '<p class="muted">Контейнер пуст.</p>'}</div><div class="section-intro"><h3>Грузовой отсек</h3><p>${weight(s).toFixed(1)} / ${shipStats(s).cargo} кг · ${inventorySlots(s.inventory) + reservedCargo(s).slots} / 40 слотов. Стак: до 99 единиц на слот.</p></div><div class="item-grid">${cards(s.inventory, false)}</div><div class="section-intro"><h3>Контрактный манифест</h3><p>${reservedCargo(s).weight} кг зарезервировано. Эти грузы защищены от расходования.</p></div><div class="list">${
       s.contracts
         .filter((q) => missionTarget(q))
         .map(
@@ -214,9 +229,9 @@ export class Interface {
         target = missionTarget(q);
       if (!m)
         return `${q.item ? `${items[q.item]?.name}: ${quantity(s, q.item)}/${q.target}` : `Прогресс: ${Math.min(q.progress, q.target)}/${q.target}`} · ₡ ${q.reward}`;
-      return `${esc(m.manifest.label)} · ${m.manifest.weight} кг / ${m.manifest.slots} сл.<br>${m.stage === "cancelled" ? "Отменён — груз передан портовой службе" : m.stage === "done" ? "Доставлено" : `${m.stage === "pickup" ? "Спасти у терминала после боя" : "Доставить"}: ${esc(destinationName(s, target!))}`} · ₡ ${q.reward}`;
+      return `${esc(m.manifest.label)}${m.escort ? ` · Корпус ${Math.ceil(m.escort.hull)}/${m.escort.maxHull}${m.escort.arrived ? " · В порту" : " · Держитесь в пределах 250 м при прыжке"}` : ""} · ${m.manifest.weight} кг / ${m.manifest.slots} сл.<br>${m.stage === "failed" ? "Провален — конвой уничтожен" : m.stage === "cancelled" ? "Отменён — груз передан портовой службе" : m.stage === "done" ? "Доставлено" : `${m.stage === "pickup" ? "Спасти у терминала после боя" : "Доставить"}: ${esc(destinationName(s, target!))}`} · ₡ ${q.reward}`;
     };
-    return `<div class="section-intro"><h3>Контракты</h3><p>Опечатанный груз и пассажирское оборудование занимают место в корабле. Сдача возможна только в назначенном порту. Спасение: абордаж, охрана, центральный терминал, возвращение. Отмена в порту снижает репутацию на 4.</p></div><div class="list">${s.contracts.map((q) => `<div class="list-row"><div><strong>${esc(q.title)} ${q.complete ? "✓" : ""}</strong><p>${describe(q)}</p></div><div class="contract-actions">${missionTarget(q) ? button("Маршрут", "missionRoute", q.id) : ""}${button(q.complete ? "Сдано" : q.mission?.stage === "cancelled" ? "Отменён" : "Сдать", "claim", q.id, !canClaimContract(s, q))}${q.mission && missionTarget(q) ? button("Отменить · −4 реп.", "cancelContract", q.id, s.mode !== "station", "quiet") : ""}</div></div>`).join("") || '<p class="muted">Активных контрактов нет.</p>'}${
+    return `<div class="section-intro"><h3>Контракты</h3><p>Опечатанный груз и пассажирское оборудование занимают место в корабле. Сдача возможна только в назначенном порту. Спасение: абордаж, охрана, центральный терминал, возвращение. Конвой: держитесь рядом, защищайте корабль и доведите его до порта. Отмена в порту снижает репутацию на 4.</p></div><div class="list">${s.contracts.map((q) => `<div class="list-row"><div><strong>${esc(q.title)} ${q.complete ? "✓" : ""}</strong><p>${describe(q)}</p></div><div class="contract-actions">${missionTarget(q) ? button("Маршрут", "missionRoute", q.id) : ""}${button(q.complete ? "Сдано" : q.mission?.stage === "failed" ? "Провален" : q.mission?.stage === "cancelled" ? "Отменён" : "Сдать", "claim", q.id, !canClaimContract(s, q))}${q.mission && missionTarget(q) ? button("Отменить · −4 реп.", "cancelContract", q.id, s.mode !== "station", "quiet") : ""}</div></div>`).join("") || '<p class="muted">Активных контрактов нет.</p>'}${
       s.mode === "station"
         ? contractOffers(s)
             .filter((q) => !s.contracts.some((c) => c.id === q.id))

@@ -7,10 +7,12 @@
 - `src/scenes`: drawing of space, planet surfaces and compartment interiors. Only current system is simulated.
 - `src/input`: keyboard and pointer/touch controls with cancellation handling.
 - `src/ui`: menus and telemetry, event-driven updates with limited HUD frequency.
-- `src/save`: format 3 with explicit format-1/format-2 migrations; three validated, checksum-protected localStorage slots with last-good backups and JSON import/export. Storage keys retain `v1` for browser compatibility.
+- `src/save`: format 4 with explicit format-1/format-2/format-3 migrations; three validated, checksum-protected localStorage slots with last-good backups and JSON import/export. Storage keys retain `v1` for browser compatibility.
 - `src/audio`: user-gesture-initialized Web Audio synthesis.
 - `tests`: meaningful rules, deterministic generation and campaign progression.
 
 Production base is `/STARFALL-VOID-FRONTIER/`. All media is procedural; Vite emits JS and CSS with the configured prefix. GitHub Actions installs locked dependencies, tests, builds and publishes `dist` through the official Pages artifact workflow.
 
 State is intentionally plain JSON. Frame-only pooled particles and input do not enter save files. Fixed-step simulation clamps elapsed time and pauses on backgrounding. `core/inventory.ts` handles capacity and container transfers; `core/boarding.ts` handles derelict entry and salvage. Ship upgrades and classes influence real compartment integrity and capacity. New save versions need explicit migrations and validation.
+
+Mission manifests are separate from disposable item pools and reserve cargo weight/slots. `core/escort.ts` owns saved convoy movement, jump proximity, ambush and hull damage; actions, simulation, renderer and UI share this state. Completed, cancelled and failed objectives cannot reward again.

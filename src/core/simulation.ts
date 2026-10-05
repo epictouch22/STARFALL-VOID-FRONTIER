@@ -3,6 +3,7 @@ import type { State, Projectile } from "./types";
 import { addItem, has, log, shipStats } from "./state";
 import { injure, medicalTick } from "./medicine";
 import { currentPlanet, distance, randomEvent, recover } from "./actions";
+import { escorts, tickEscorts, hitEscort } from "./escort";
 export type Controls = {
   mx: number;
   my: number;
@@ -309,14 +310,28 @@ export function tick(s: State, input: Controls, dt: number) {
     s.ship.hull = Math.min(stats.hull, s.ship.hull + 25);
   }
   medicalTick(s, dt);
+  tickEscorts(s, dt);
+  const convoyShips = escorts(s)
+    .map((e) => e.ship)
+    .filter((ship) => ship.system === s.system && !ship.arrived);
   if (s.mode === "space" || s.mode === "surface" || s.mode === "derelict") {
     for (const e of s.enemies) {
       e.disabled = Math.max(0, e.disabled - dt);
       e.cooldown -= dt;
-      const d = distance(s, e);
+      const ally =
+        s.mode === "space"
+          ? convoyShips.find(
+              (ship) =>
+                ship.hull > 0 &&
+                (e.id.startsWith("escort:") ||
+                  distance(e, ship) < distance(e, s)),
+            )
+          : undefined;
+      const target = ally ?? s;
+      const d = distance(target, e);
       if (d > 1800) continue;
       const ground = s.mode === "surface" || s.mode === "derelict";
-      const a = Math.atan2(s.y - e.y, s.x - e.x);
+      const a = Math.atan2(target.y - e.y, target.x - e.x);
       e.angle = a;
       if (e.boss) {
         e.phase = e.hp / e.maxHp < 0.3 ? 3 : e.hp / e.maxHp < 0.65 ? 2 : 1;
@@ -411,6 +426,16 @@ export function tick(s: State, input: Controls, dt: number) {
             break;
           }
         }
+      } else if (
+        s.mode === "space" &&
+        convoyShips.some(
+          (ship) =>
+            ship.hull > 0 &&
+            distance(p, ship) < 25 &&
+            hitEscort(s, ship, p.damage),
+        )
+      ) {
+        p.life = 0;
       } else if (distance(p, s) < 22) {
         if (s.mode === "space") damageShip(s, p.damage);
         else

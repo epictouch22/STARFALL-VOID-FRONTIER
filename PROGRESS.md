@@ -1,66 +1,57 @@
-# Progress — release 0.3
+# Progress — release 0.4 (2026-10-05)
 
 ## DONE
 
-- Created playable TypeScript/Vite/Canvas game from an empty repository.
-- Seeded galaxy: 25 systems, 5 regions, 10 biomes, 25 stations, 13 outposts, planets, derelicts, anomalies and asteroid fields.
-- Walkable ship, repair introduction, inertia flight, touch controls, autopilot with docking alignment, landing, mining and ruin archives.
-- Six body parts, bleeding, blood, oxygen, pain, consciousness, temperature/radiation, targeted medications.
-- Projectile combat, five distinct phased bosses, five campaign chapters, three final choices and continuing exploration.
-- Trading, eight contract types including exact-port delivery, passengers and guarded rescue, crafting, 54 working technologies, five ship classes with 6/8/10 real compartments, ship and character customization.
-- Separate suit container (35 kg / 12 slots) and cargo (40 slots, class-dependent weight), stack limits, transfers, automatic resource unloading and four quick supply slots.
-- Boarding disabled pirates and derelicts, hostile crew/robots, projectile combat inside, one-time salvage; EVA external repair at the parked ship.
-- Fires damage compartments and spread; suppression upgrade works. Capped pooled explosion particles, damage shake and jump/landing transitions honor reduced-effects mode.
-- Mobile flight uses a wider camera and keeps radio messages away from the player, so close-range enemy ships remain visible.
-- Three validated save slots, autosave, JSON import/export and last-good backups. Synthesized audio, settings, medical body diagram, codex.
-- 42 unit/integration tests pass, including actual projectile victories against all five bosses, legacy-save migration and out-of-order intro repairs. Production build passes; JS is about 127 KB before gzip. Dependency audit reports 0 vulnerabilities.
-- Chromium and iPhone-sized WebKit passed UI acceptance: introduction → flight → docking → market → contract → save/reload → upgrade → landing → ruin → takeoff → first boss victory. The initial published release also passed live browser checks.
-- GitHub Pages enabled through API, source GitHub Actions. First deployment succeeded. No GitHub settings action is required from the user.
-- Public game: https://epictouch22.github.io/STARFALL-VOID-FRONTIER/. Every main push runs locked install, tests, build, base-path verification and Chromium/WebKit acceptance before deployment. CI stores screenshots.
-
-- Release 0.3: sealed manifest capacity, exact destination, route/map/world markers, cancellation and once-only reward. Rescue requires defeating real boarding guards and interacting with the terminal.
-- Fixed reversed reputation sell prices, overloaded ship downsizing, suit quantity buttons, one-frame stimulant and malformed-save validator exceptions.
-- Chromium and iPhone WebKit passed the expanded delivery/passenger route with save/reload, wrong-port rejection and real first-boss combat.
-
-- Earned full-campaign integration test now completes New Game → repairs → paid upgrades → all five projectile bosses → saved ending → free play, with no configured money/health/unlocks.
-- Fixed adaptive shield damage leaking into hull and ground kills incorrectly advancing ship bounties. Station service now recharges the installed shield.
+- Audited GAME_DESIGN, ARCHITECTURE, ROADMAP, PROGRESS, README, recent commits, actual code and the original brief. QA_AUDIT.md separates implemented loops from missing depth; the entire original brief is not complete.
+- Preserved seeded 25-system / 5-region galaxy, over 60 planets, 10 biomes, 25 ports, 13 outposts, repair introduction, flight physics, scanner, autopilot, docking, landing, mining and archives.
+- Preserved six-part medicine, module emergencies/fire/breaches, EVA repairs, guarded boarding, projectile combat, crafting, market, 54 technology effects, five ship classes and appearance customization.
+- Preserved suit/cargo containers, weight/slots/stacks, transfers/unloading, quick slots, local saves/backups/import/export, procedural graphics/audio and touch controls.
+- Completed the previous NEXT task: true cross-system delivery with exact ports, issued sealed manifests, reserved cargo capacity, route/map/world markers, cancellation and once-only rewards. Player medicine is separate from freight.
+- Added passenger transport and missing-crew rescue: board the specified derelict, defeat guards, reach its terminal, evacuate survivors and return to the origin port. Already salvaged wrecks can still yield mission survivors.
+- Added physical convoy escort: visible allied ship, radar/HUD hull, follow movement, 250 m jump constraint, pirate ambush, enemy projectile damage, persistent failure with reputation penalty, and payment only after safe arrival at the specified port. Nine contract types now exist.
+- Save format 4 migrates published formats 1/2/3. Legacy accepted deliveries retain original terms; active v3 freight retains destinations, manifests and progress. Existing browser storage keys remain unchanged.
+- Fixed reversed sale reputation, overloaded ship downsizing, suit-quantity buttons, one-frame stimulant duration, unsafe nested-save validation, adaptive shield damage leaking into hull, ground kills counting as ship bounties, and station service omitting shield recharge.
+- Fixed destructive recycling when output does not fit and wasteful use of full fuel/oxygen/food/hull reserves. Iron recycling button is explicitly unavailable.
+- Added an earned full-campaign integration test: actual repair/movement/actions, convoy trip, paid equipment, all five projectile bosses, save/reload between chapters, ending and further travel. No money/health/unlock/position/boss-HP injection.
+- Extended production browser acceptance from New Game through delivery/passengers/escort, reload, earned equipment, all five bosses, ending, reload and free play. Runtime save data is read only for assertions/aiming; no debug or save mutation.
+- Stable milestones already pushed: 431fe62 (routed missions) and 195a41f (full campaign/combat QA). Both deployed successfully; Actions runs 37279171439 and 37280367040 passed.
+- GitHub Pages is active with GitHub Actions as source. Every main push installs locked dependencies, tests, builds, checks Pages asset paths and runs Chromium/WebKit acceptance before deployment. No GitHub settings action is needed.
+- Public game: https://epictouch22.github.io/STARFALL-VOID-FRONTIER/.
 
 ## IN PROGRESS
 
-- Release 0.2 expands the initial playable campaign; audited coverage and gaps are recorded in QA_AUDIT.md.
+- ROADMAP stage 6: mission depth has expanded; event choices, physical planet interiors and remaining original-brief depth are still development work. No unfinished source changes are intended at the session checkpoint.
 
 ## NEXT
 
-- Implement physical escort contracts: a rendered convoy follows the player, can take enemy projectile damage, must be within jump range, persists across reloads, and pays only after surviving arrival at the specified port. Add failure/reward/migration and UI acceptance checks.
+- Implement saved interactive encounter choices for three concrete events: SOS, cargo inspection and ancient beacon. Add data-driven choice definitions and core resolution with actual resource/reputation/damage/route consequences, once-only resolution and atomic capacity handling. Surface a usable encounter panel on PC/iPhone, migrate saves, test pending/declined/resolved states and reload, then typecheck/test/build and push main. Keep existing campaign/mission acceptance passing.
 
 ## KNOWN BUGS
 
-- No known blocker in the tested acceptance paths. The automated full campaign has been verified; a human multi-hour exploration run and real iPhone hardware performance remain unverified.
-- Planet caves/wrecks are resource nodes rather than separate submaps; terrain has no solid obstacles, varied weather or biome-specific fauna AI yet.
-- Inventory transfers use buttons; drag-and-drop, dropped-item world containers and additional equipment slots remain to implement.
-- Exact-port delivery, passengers and missing-crew rescue are implemented. Escort/evacuation remain absent. The former repair objective is explicitly a port supply requisition, not a physical ship repair mission.
-- Events have 32 names and grouped simulation effects; interactive event choices need expansion.
-- Flooding/coolant simulation, targeted enemy modules, capturable enemy ships, hidden mini-boss/legendary equipment, richer faction/NPC histories and boss weak-point interactions remain planned. Bosses have real phases and distinct attacks.
-- There are no procedural moons, moving merchant docking ports or independent station submaps yet. Reactor/engine/oxygen/shield integrity affects ship systems; cable networks are compact upgrade effects rather than a tile wiring simulation.
-- Real iPhone Safari hardware has not been tested. Automated WebKit emulation is a compatibility check, not a hardware guarantee.
+- No known blocker in tested New Game → ending paths. Human multi-hour exploration and physical iPhone Safari hardware/performance remain unverified.
+- Planets have cave/wreck resource nodes, not independent interiors or solid terrain. Weather, distinct fauna AI, moons and surface bases remain absent.
+- Inventory lacks drag-and-drop, world dropped-item containers and equipment slots.
+- Repair contracts are honestly labelled port supply requisitions; physical NPC ship repair, smuggling and evacuation chains remain absent. Escort simulates the active system and pauses with other space combat when the player enters an interior.
+- Events have 32 labels with grouped effects; interactive choices and independent encounters remain incomplete.
+- Flooding/coolant, detailed wiring/pressure volumes, targeted enemy modules, captured vessels, merchant docking, boss weak points, hidden mini-bosses, legendary equipment and richer faction/NPC histories remain absent.
+- Original content targets (100 items, 20 enemy/weapon variants, 30 quest templates), selectable Explorer/Normal/Survivor difficulty and parts of appearance customization remain unfulfilled. Current seven weapons and compact regional AI work.
 
 ## IMPORTANT ARCHITECTURE
 
-- Read GAME_DESIGN.md, ARCHITECTURE.md, ROADMAP.md and this file before continuing.
-- No backend. Canvas world with DOM UI. Browser localStorage, 3 slots.
-- Save format 3 migrates published formats 1 and 2; accepted old contracts keep their existing terms. Keep existing `starfall-save-v1-*` storage keys to preserve deployed saves. Validate checksum before migration and nested schema after it.
-- Galaxy PRNG and IDs must remain stable for existing seeds. Runtime input, particles and renderer caches are not save data.
-- Production base is `/STARFALL-VOID-FRONTIER/`. `scripts/verify-build.mjs` checks emitted asset prefixes and files. `npm run test:browser` expects a production preview at port 4173 or GAME_URL.
-- Main repository: epictouch22/STARFALL-VOID-FRONTIER.
+- Read the five project documents and QA_AUDIT.md before further development. Canvas world plus DOM UI; no backend.
+- Save format 4; preserve `starfall-save-v1-*` storage keys, verify checksum before migration and nested data afterwards. Never silently reinterpret accepted legacy contracts.
+- Do not change seeded PRNG/IDs without migration. Input, particles and render caches stay out of saves.
+- Mission manifests reserve cargo but never enter disposable item pools. Escorts have their own saved ship state; `core/escort.ts` is wired into jump, simulation, damage, renderer and UI.
+- Pages base: `/STARFALL-VOID-FRONTIER/`. `verify-build.mjs` checks emitted paths/files. Browser acceptance requires production preview port 4173 or GAME_URL.
 
 ## TEST STATUS
 
-- `npm run typecheck`: PASS.
-- `npm test`: 42 tests PASS.
-- `npm run test:browser`: Chromium and iPhone WebKit PASS: New Game, delivery/passengers, reload, earned equipment, all five bosses, ending, reload and free play.
-- Earned five-chapter core campaign: PASS. Full Chromium UI campaign: PASS. Full iPhone WebKit UI campaign: PASS. Physical iPhone hardware remains unverified.
+- `npm run typecheck`: PASS. `npm test`: 50 tests PASS across five files.
+- Earned five-chapter core campaign including physical escort: PASS.
+- Full Chromium production UI campaign with escort: PASS. Full iPhone WebKit production UI campaign with escort: PASS.
+- Dependency audit: 0 vulnerabilities. Physical iPhone hardware not tested.
 
 ## BUILD STATUS
 
-- `npm run build`: PASS. `verify-build.mjs`: PASS for JS/CSS under the Pages base.
-- Existing automatic Pages workflow retained; mission checkpoint 431fe62 successfully published by Actions run 37279171439. Every stable main push deploys automatically.
+- Production build and Pages asset verification: PASS. Procedural images/audio need no additional asset paths or backend.
+- Existing deployment workflow retained. Release 0.4 uses this same automatic deployment. `scripts/live-check.mjs` verifies published JS/CSS contents against dist and opens New Game/all 12 panels/saves in Chromium and iPhone WebKit.

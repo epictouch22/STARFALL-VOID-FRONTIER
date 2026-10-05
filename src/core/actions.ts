@@ -1,5 +1,6 @@
 import { boardDerelict, externalRepair, salvageBoard } from "./boarding";
 import { unloadResources } from "./inventory";
+import { escorts, escortInJumpRange, jumpEscorts } from "./escort";
 import { biomes, chapters, events, items } from "../data/catalog";
 import {
   generateGalaxy,
@@ -187,6 +188,14 @@ export function jump(s: State, id: number) {
     );
     return false;
   }
+  if (escorts(s).some(({ ship }) => !escortInJumpRange(s, ship))) {
+    log(
+      s,
+      "Конвой отстал: приблизьтесь к «Светляку» на 250 м перед гиперпрыжком.",
+    );
+    return false;
+  }
+  const from = s.system;
   s.ship.fuel -= cost;
   s.system = id;
   s.stats.jumps++;
@@ -198,6 +207,7 @@ export function jump(s: State, id: number) {
   s.enemies = [];
   s.projectiles = [];
   populateEnemies(s);
+  jumpEscorts(s, from);
   scan(s);
   log(s, `Гиперпереход: ${generateGalaxy(s.seed)[id].name}`);
   return true;
@@ -604,9 +614,29 @@ export function recover(s: State) {
   s.projectiles = [];
   log(s, "Спасатели доставили вас в порт. Удержана плата за эвакуацию.");
 }
+export function canUseSupply(s: State, id: string) {
+  return id === "fuel"
+    ? s.ship.fuel < 100
+    : id === "oxygen"
+      ? s.health.oxygen < shipStats(s).oxygen
+      : id === "food"
+        ? s.health.hunger < 100
+        : id === "ammo"
+          ? true
+          : id === "parts"
+            ? s.ship.hull < shipStats(s).hull
+            : id === "probe"
+              ? generateGalaxy(s.seed).some(
+                  (sys) =>
+                    sys.region === Math.floor(s.system / 5) &&
+                    !s.discovered.includes(sys.id),
+                )
+              : false;
+}
 export function useSupply(s: State, id: string) {
   if (
     !["fuel", "oxygen", "food", "ammo", "parts", "probe"].includes(id) ||
+    !canUseSupply(s, id) ||
     !consume(s, id)
   )
     return false;

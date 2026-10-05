@@ -14,7 +14,7 @@ function validate(value: unknown): value is State {
   if (!value || typeof value !== "object") return false;
   const s = value as State,
     template = newGame();
-  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 3)
+  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 4)
     return false;
   const validNum = (n: unknown, min = 0, max = 1e9) =>
     typeof n === "number" && Number.isFinite(n) && n >= min && n <= max;
@@ -32,22 +32,40 @@ function validate(value: unknown): value is State {
     complete: boolean,
     type: string,
   ) => {
-    if (m === null) return !["passenger", "rescue"].includes(type);
+    if (m === null) return !["passenger", "rescue", "escort"].includes(type);
+    const escort = m?.escort;
+    const validEscort =
+      type === "escort"
+        ? !!escort &&
+          Number.isInteger(escort.system) &&
+          validNum(escort.system, 0, 24) &&
+          [escort.x, escort.y, escort.angle].every((n) =>
+            validNum(n, -10000, 10000),
+          ) &&
+          validNum(escort.maxHull, 1, 5000) &&
+          validNum(escort.hull, 0, escort.maxHull) &&
+          typeof escort.arrived === "boolean" &&
+          typeof escort.ambushTriggered === "boolean" &&
+          (m.stage !== "done" || escort.arrived) &&
+          (m.stage !== "failed" || escort.hull === 0)
+        : escort === null;
     return (
       !!m &&
-      ["delivery", "passenger", "rescue"].includes(type) &&
+      ["delivery", "passenger", "rescue", "escort"].includes(type) &&
+      validEscort &&
       validPort(m.origin, ["station", "outpost"]) &&
       validPort(m.destination, ["station", "outpost"]) &&
       (type === "rescue"
         ? validPort(m.pickup, ["derelict"])
         : m.pickup === null) &&
-      ["pickup", "delivery", "done", "cancelled"].includes(m.stage) &&
+      ["pickup", "delivery", "done", "cancelled", "failed"].includes(m.stage) &&
+      (m.stage !== "failed" || type === "escort") &&
       (m.stage !== "pickup" || type === "rescue") &&
       complete === (m.stage === "done") &&
       !!m.manifest &&
       str(m.manifest.label, 150) &&
-      validNum(m.manifest.weight, 0.1, 1000) &&
-      validNum(m.manifest.slots, 1, 40) &&
+      validNum(m.manifest.weight, type === "escort" ? 0 : 0.1, 1000) &&
+      validNum(m.manifest.slots, type === "escort" ? 0 : 1, 40) &&
       Number.isInteger(m.manifest.slots)
     );
   };
@@ -256,6 +274,7 @@ function validate(value: unknown): value is State {
           "repair",
           "passenger",
           "rescue",
+          "escort",
         ].includes(q.type) ||
         !str(q.item) ||
         (q.item !== "" && !items[q.item]) ||
@@ -332,7 +351,7 @@ export function decode(raw: string): State {
   const e = JSON.parse(raw);
   if (
     e.format !== "STARFALL" ||
-    ![1, 2, 3].includes(e.saveVersion) ||
+    ![1, 2, 3, 4].includes(e.saveVersion) ||
     typeof e.payload !== "string" ||
     hash(e.payload) !== e.checksum
   )
@@ -349,9 +368,20 @@ export function migrate(value: unknown): unknown {
   if (!value || typeof value !== "object")
     throw new Error("Некорректное сохранение");
   const old = value as Record<string, unknown>;
-  if (old.version === 3) return old;
-  if (old.version === 2)
+  if (old.version === 4) return old;
+  if (old.version === 3)
     return {
+      ...old,
+      version: 4,
+      contracts: Array.isArray(old.contracts)
+        ? old.contracts.map((q) => ({
+            ...q,
+            mission: q?.mission ? { ...q.mission, escort: null } : null,
+          }))
+        : old.contracts,
+    };
+  if (old.version === 2)
+    return migrate({
       ...old,
       version: 3,
       health:
@@ -361,7 +391,7 @@ export function migrate(value: unknown): unknown {
       contracts: Array.isArray(old.contracts)
         ? old.contracts.map((q) => ({ ...q, mission: null }))
         : old.contracts,
-    };
+    });
   if (old.version === 1) {
     const defaults = newGame();
     return migrate({

@@ -11,6 +11,7 @@ import {
 import { currentPlanet, stationPoints } from "../core/actions";
 import { has } from "../core/state";
 import { missionTarget } from "../core/economy";
+import { escorts } from "../core/escort";
 export class Renderer {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -174,6 +175,28 @@ export class Renderer {
         );
         if (e.boss) this.label(e.name, e.x, e.y - 110, "#f0a39a", 14);
       }
+      if (s.mode === "space")
+        for (const { ship } of escorts(s)) {
+          if (ship.system !== s.system) continue;
+          this.ship(
+            ship.x,
+            ship.y,
+            ship.angle,
+            "#8bd5a2",
+            !ship.arrived,
+            s.time,
+            1.1,
+          );
+          this.bar(
+            ship.x,
+            ship.y - 52,
+            80,
+            4,
+            ship.hull / ship.maxHull,
+            "#8bd5a2",
+          );
+          this.label("СВЕТЛЯК · КОНВОЙ", ship.x, ship.y - 70, "#a6e0b6", 12);
+        }
       for (const p of s.projectiles) {
         c.strokeStyle =
           p.owner === "enemy"
@@ -846,20 +869,25 @@ export class Renderer {
     for (const p of [
       ...this.galaxy[s.system].contacts,
       ...s.enemies,
+      ...escorts(s)
+        .filter((e) => e.ship.system === s.system)
+        .map((e) => e.ship),
       ...s.projectiles.filter((p) => p.owner === "enemy"),
     ]) {
       const d = Math.hypot(p.x - s.x, p.y - s.y);
       if (d > range) continue;
       c.fillStyle =
-        "hp" in p
-          ? "#f18b8b"
-          : "kind" in p
-            ? p.kind === "planet"
-              ? "#9cafbd"
-              : p.kind === "station"
-                ? "#e5bd7b"
-                : "#9e93db"
-            : "#f69b6f";
+        "hull" in p
+          ? "#8bd5a2"
+          : "hp" in p
+            ? "#f18b8b"
+            : "kind" in p
+              ? p.kind === "planet"
+                ? "#9cafbd"
+                : p.kind === "station"
+                  ? "#e5bd7b"
+                  : "#9e93db"
+              : "#f69b6f";
       c.fillRect(
         x + ((p.x - s.x) / range) * r - 2,
         y + ((p.y - s.y) / range) * r - 2,

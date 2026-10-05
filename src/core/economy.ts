@@ -63,6 +63,20 @@ export function craft(s: State, id: string) {
   log(s, `Создано: ${items[id].name} ×${r.amount}`);
   return true;
 }
+export function recycleItem(s: State, id: string) {
+  if (!has(s, "recycle") || id === "iron" || !items[id] || !quantity(s, id))
+    return false;
+  const cargo = { ...s.inventory },
+    pack = { ...s.pack };
+  if (!consume(s, id)) return false;
+  if (!addItem(s, "iron", 1)) {
+    s.inventory = cargo;
+    s.pack = pack;
+    return false;
+  }
+  log(s, `Разобрано: ${items[id].name}. Получено железо ×1.`);
+  return true;
+}
 export function buyUpgrade(s: State, id: string) {
   const u = upgrades.find((x) => x.id === id);
   if (
@@ -209,6 +223,7 @@ export function contractOffers(s: State): Contract[] {
         pickup: null,
         stage: "delivery",
         manifest: { label: "Опечатанные медикаменты ×2", weight: 2, slots: 1 },
+        escort: null,
       },
     },
     {
@@ -244,6 +259,7 @@ export function contractOffers(s: State): Contract[] {
       target: 3,
       reward: 540,
       mission: {
+        escort: null,
         origin,
         destination,
         pickup: null,
@@ -264,6 +280,7 @@ export function contractOffers(s: State): Contract[] {
       target: 2,
       reward: 900,
       mission: {
+        escort: null,
         origin,
         destination: origin,
         pickup: {
@@ -278,11 +295,41 @@ export function contractOffers(s: State): Contract[] {
         },
       },
     },
+    {
+      ...base,
+      id: `${s.system}-escort`,
+      type: "escort",
+      title: "Охрана исследовательского конвоя",
+      item: "",
+      target: 1,
+      reward: 780 + Math.floor(s.system / 5) * 150,
+      mission: {
+        origin,
+        destination,
+        pickup: null,
+        stage: "delivery",
+        manifest: {
+          label: "Конвой «Светляк» — держитесь рядом",
+          weight: 0,
+          slots: 0,
+        },
+        escort: {
+          system: s.system,
+          x: (port?.x ?? 300) + (port?.radius ?? 55) + 100,
+          y: port?.y ?? -120,
+          angle: Math.PI,
+          hull: 220,
+          maxHull: 220,
+          arrived: false,
+          ambushTriggered: false,
+        },
+      },
+    },
   ] satisfies Contract[];
   return offers;
 }
 export function missionTarget(q: Contract) {
-  if (!q.mission || ["done", "cancelled"].includes(q.mission.stage))
+  if (!q.mission || ["done", "cancelled", "failed"].includes(q.mission.stage))
     return null;
   return q.mission.stage === "pickup"
     ? q.mission.pickup
@@ -296,6 +343,13 @@ export function destinationName(
   return `${sys.contacts.find((c) => c.id === port.location)?.name ?? port.location} / ${sys.name}`;
 }
 export function canAcceptContract(s: State, q: Contract) {
+  if (
+    q.type === "escort" &&
+    s.contracts.some(
+      (c) => c.type === "escort" && c.mission?.stage === "delivery",
+    )
+  )
+    return false;
   if (
     s.mode !== "station" ||
     s.contracts.length >= 300 ||
@@ -318,7 +372,8 @@ export function acceptContract(s: State, id: string) {
   if (!q || !canAcceptContract(s, q)) return false;
   s.contracts.push(q);
   if (q.mission) {
-    if (q.mission.stage === "delivery") q.progress = q.target;
+    if (q.mission.stage === "delivery" && q.type !== "escort")
+      q.progress = q.target;
     for (const port of [
       q.mission.origin,
       q.mission.destination,
@@ -340,6 +395,7 @@ export function canClaimContract(s: State, q: Contract) {
   if (q.mission)
     return (
       q.mission.stage === "delivery" &&
+      (!q.mission.escort || q.mission.escort.arrived) &&
       s.system === q.mission.destination.system &&
       s.location === q.mission.destination.location
     );
@@ -350,7 +406,7 @@ export function cancelContract(s: State, id: string) {
   if (
     !q?.mission ||
     q.complete ||
-    q.mission.stage === "cancelled" ||
+    ["cancelled", "failed"].includes(q.mission.stage) ||
     s.mode !== "station"
   )
     return false;

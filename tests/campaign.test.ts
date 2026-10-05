@@ -96,6 +96,14 @@ it("completes New Game through all five real bosses with earned equipment, reloa
   expect(claimContract(s, "0-mining")).toBe(true);
   expect(buyUpgrade(s, "shield-0")).toBe(true);
   expect(buyUpgrade(s, "hull-0")).toBe(true);
+  expect(acceptContract(s, "0-escort")).toBe(true);
+  depart(s);
+  expect(jump(s, 1)).toBe(true);
+  dock(s);
+  expect(claimContract(s, "0-escort")).toBe(true);
+  depart(s);
+  expect(jump(s, 0)).toBe(true);
+  dock(s);
   for (let chapter = 0; chapter < 5; chapter++) {
     if (chapter > 0) {
       expect(jump(s, chapter * 5)).toBe(true);
