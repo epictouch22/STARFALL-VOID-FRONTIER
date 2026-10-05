@@ -1732,6 +1732,7 @@ strong {
     opacity: var(--control-opacity);
   }
 }
+@media(max-width:700px){#radio{top:220px;bottom:auto;width:158px;max-height:82px;overflow:hidden}}
 .supply-row button {
   font-size: 11px;
   min-height: 44px;

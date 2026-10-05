@@ -11,6 +11,7 @@
 - Separate suit container (35 kg / 12 slots) and cargo (40 slots, class-dependent weight), stack limits, transfers, automatic resource unloading and four quick supply slots.
 - Boarding disabled pirates and derelicts, hostile crew/robots, projectile combat inside, one-time salvage; EVA external repair at the parked ship.
 - Fires damage compartments and spread; suppression upgrade works. Capped pooled explosion particles, damage shake and jump/landing transitions honor reduced-effects mode.
+- Mobile flight uses a wider camera and keeps radio messages away from the player, so close-range enemy ships remain visible.
 - Three validated save slots, autosave, JSON import/export and last-good backups. Synthesized audio, settings, medical body diagram, codex.
 - 26 unit/integration tests pass, including actual projectile victories against all five bosses, legacy-save migration and out-of-order intro repairs. Production build passes; JS is about 120 KB before gzip. Dependency audit reports 0 vulnerabilities.
 - Chromium and iPhone-sized WebKit passed UI acceptance: introduction → flight → docking → market → contract → save/reload → upgrade → landing → ruin → takeoff → first boss victory. The initial published release also passed live browser checks.

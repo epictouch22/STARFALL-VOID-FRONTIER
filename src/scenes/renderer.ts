@@ -109,7 +109,7 @@ export class Renderer {
     this.scale = indoor
       ? Math.min(1.15, (w - 30) / 540, (h - 160) / 620)
       : w < 700
-        ? 0.58
+        ? s.mode === 'surface' ? 0.58 : 0.42
         : 0.85;
     this.cx = indoor ? 0 : s.x;
     this.cy = indoor ? 30 : s.y;
