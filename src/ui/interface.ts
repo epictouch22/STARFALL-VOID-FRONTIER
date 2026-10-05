@@ -1,4 +1,4 @@
-import type { State } from "../core/types";
+import type { State, Contract } from "../core/types";
 import {
   items,
   recipes,
@@ -12,8 +12,19 @@ import {
 import { generateGalaxy } from "../world/galaxy";
 import { contextLabel, currentPlanet, contacts } from "../core/actions";
 import { has, shipStats, weight, quantity } from "../core/state";
-import { inventoryWeight, inventorySlots } from "../core/inventory";
-import { contractOffers, price } from "../core/economy";
+import {
+  inventoryWeight,
+  inventorySlots,
+  reservedCargo,
+} from "../core/inventory";
+import {
+  contractOffers,
+  price,
+  canAcceptContract,
+  canClaimContract,
+  destinationName,
+  missionTarget,
+} from "../core/economy";
 import { slots } from "../save/storage";
 export const esc = (text: unknown) =>
   String(text).replace(
@@ -187,7 +198,47 @@ export class Interface {
             `<article class="item-card"><div class="item-icon" style="color:${items[id].color}">${items[id].kind === "resource" ? "⬡" : items[id].kind === "medical" ? "✚" : "▣"}</div><div><h4>${esc(items[id].name)} <b>×${n}</b></h4><p>${esc(items[id].description)}</p><small>${(items[id].weight * n).toFixed(1)} кг / ${Math.ceil(n / 99)} слот</small></div><div class="item-actions">${items[id].kind === "medical" ? button("Лечить", "panel", "medical") : items[id].kind === "supply" ? button("Использовать", "use", id) : ""}${button(packed ? "На корабль" : "В скафандр", "transfer", `${packed ? "cargo" : "pack"}:${id}`, !["space", "station", "interior"].includes(s.mode))}${items[id].kind !== "resource" ? button("На панель", "quickAssign", id) : ""}${has(s, "recycle") ? button("Разобрать", "recycle", id) : ""}${button("Выбросить 1", "discard", `${packed ? "pack" : "cargo"}:${id}`)}</div></article>`,
         )
         .join("");
-    return `<div class="section-intro"><h3>Быстрые припасы</h3><p>Клавиши 1–4 на ПК. «На панель» назначает предмет в следующий слот.</p></div><div class="supply-row">${s.quickSlots.map((id, i) => button(`${i + 1} · ${items[id].name} ×${quantity(s, id)}`, "quick", String(i), !quantity(s, id))).join("")}</div><div class="section-intro"><h3>Скафандр</h3><p>${inventoryWeight(s.pack).toFixed(1)} / 35 кг · ${inventorySlots(s.pack)} / 12 слотов. Добыча на планетах попадает сюда. При взлёте ресурсы выгружаются в корабль, если есть место.</p></div><div class="item-grid">${cards(s.pack, true) || '<p class="muted">Контейнер пуст.</p>'}</div><div class="section-intro"><h3>Грузовой отсек</h3><p>${weight(s).toFixed(1)} / ${shipStats(s).cargo} кг · ${inventorySlots(s.inventory)} / 40 слотов. Стак: до 99 единиц на слот.</p></div><div class="item-grid">${cards(s.inventory, false)}</div>`;
+    return `<div class="section-intro"><h3>Быстрые припасы</h3><p>Клавиши 1–4 на ПК. «На панель» назначает предмет в следующий слот.</p></div><div class="supply-row">${s.quickSlots.map((id, i) => button(`${i + 1} · ${items[id].name} ×${quantity(s, id)}`, "quick", String(i), !quantity(s, id))).join("")}</div><div class="section-intro"><h3>Скафандр</h3><p>${inventoryWeight(s.pack).toFixed(1)} / 35 кг · ${inventorySlots(s.pack)} / 12 слотов. Добыча на планетах попадает сюда. При взлёте ресурсы выгружаются в корабль, если есть место.</p></div><div class="item-grid">${cards(s.pack, true) || '<p class="muted">Контейнер пуст.</p>'}</div><div class="section-intro"><h3>Грузовой отсек</h3><p>${weight(s).toFixed(1)} / ${shipStats(s).cargo} кг · ${inventorySlots(s.inventory) + reservedCargo(s).slots} / 40 слотов. Стак: до 99 единиц на слот.</p></div><div class="item-grid">${cards(s.inventory, false)}</div><div class="section-intro"><h3>Контрактный манифест</h3><p>${reservedCargo(s).weight} кг зарезервировано. Эти грузы защищены от расходования.</p></div><div class="list">${
+      s.contracts
+        .filter((q) => missionTarget(q))
+        .map(
+          (q) =>
+            `<div class="list-row"><div><strong>${esc(q.mission!.manifest.label)}</strong><p>${esc(q.title)} · ${q.mission!.manifest.weight} кг</p></div>${button("Маршрут", "missionRoute", q.id)}</div>`,
+        )
+        .join("") || "<p>Контрактного груза нет.</p>"
+    }</div>`;
+  }
+  private contractsMenu(s: State) {
+    const describe = (q: Contract) => {
+      const m = q.mission,
+        target = missionTarget(q);
+      if (!m)
+        return `${q.item ? `${items[q.item]?.name}: ${quantity(s, q.item)}/${q.target}` : `Прогресс: ${Math.min(q.progress, q.target)}/${q.target}`} · ₡ ${q.reward}`;
+      return `${esc(m.manifest.label)} · ${m.manifest.weight} кг / ${m.manifest.slots} сл.<br>${m.stage === "cancelled" ? "Отменён — груз передан портовой службе" : m.stage === "done" ? "Доставлено" : `${m.stage === "pickup" ? "Спасти у терминала после боя" : "Доставить"}: ${esc(destinationName(s, target!))}`} · ₡ ${q.reward}`;
+    };
+    return `<div class="section-intro"><h3>Контракты</h3><p>Опечатанный груз и пассажирское оборудование занимают место в корабле. Сдача возможна только в назначенном порту. Спасение: абордаж, охрана, центральный терминал, возвращение. Отмена в порту снижает репутацию на 4.</p></div><div class="list">${s.contracts.map((q) => `<div class="list-row"><div><strong>${esc(q.title)} ${q.complete ? "✓" : ""}</strong><p>${describe(q)}</p></div><div class="contract-actions">${missionTarget(q) ? button("Маршрут", "missionRoute", q.id) : ""}${button(q.complete ? "Сдано" : q.mission?.stage === "cancelled" ? "Отменён" : "Сдать", "claim", q.id, !canClaimContract(s, q))}${q.mission && missionTarget(q) ? button("Отменить · −4 реп.", "cancelContract", q.id, s.mode !== "station", "quiet") : ""}</div></div>`).join("") || '<p class="muted">Активных контрактов нет.</p>'}${
+      s.mode === "station"
+        ? contractOffers(s)
+            .filter((q) => !s.contracts.some((c) => c.id === q.id))
+            .map(
+              (q) =>
+                `<div class="list-row"><div><strong>${esc(q.title)}</strong><p>${describe(q)}</p></div>${button("Принять", "accept", q.id, !canAcceptContract(s, q))}</div>`,
+            )
+            .join("")
+        : ""
+    }</div><div class="section-intro"><h3>Репутация</h3></div><div class="reputation-grid">${factions.map((f, i) => `<div>${f}<strong class="${s.reputation[i] < 0 ? "negative" : "positive"}">${s.reputation[i] > 0 ? "+" : ""}${s.reputation[i]}</strong></div>`).join("")}</div>`;
+  }
+  private missionMap(s: State) {
+    const g = generateGalaxy(s.seed),
+      origin = g[s.system];
+    return s.contracts
+      .map((q) => {
+        const target = missionTarget(q);
+        if (!target) return "";
+        const dest = g[target.system];
+        return `<g class="mission-map-marker"><title>${esc(q.title)}: ${esc(destinationName(s, target))}</title><line x1="${origin.x}" y1="${origin.y}" x2="${dest.x}" y2="${dest.y}" stroke="#ffb66b" stroke-dasharray="8 5"/><circle cx="${dest.x}" cy="${dest.y}" r="30" fill="none" stroke="#ffb66b" stroke-width="2"/><text x="${dest.x}" y="${dest.y - 35}" text-anchor="middle" fill="#ffb66b">◆ Контракт</text></g>`;
+      })
+      .join("");
   }
   private content() {
     const s = this.state(),
@@ -214,7 +265,7 @@ export class Interface {
             bruise: "Ушиб",
             suffocation: "Удушье",
           };
-        return `<div class="medical-layout"><div class="body-scan"><div class="eyebrow">БИОМЕТРИЯ / LIVE</div><div class="body-figure">${h.parts.map((p, i) => button(`<span>${Math.round(p.health)}%</span>`, "body", String(i), false, `body-part part-${i} ${this.medicalPart === i ? "active" : ""} ${p.health < 70 ? "injured" : ""}`)).join("")}</div><div class="body-caption">Нажмите на часть тела</div>${this.gauge("КРОВЬ", h.blood, 100, "#ed9296")}${this.gauge("СОЗНАНИЕ", h.consciousness, 100, "#a1d5cb")}<p class="muted">Боль ${Math.round(h.pain)} · Радиация ${Math.round(h.radiation)}<br>Температура ${h.temperature.toFixed(1)} °C · Сытость ${Math.round(h.hunger)}%</p></div><div><div class="section-intro"><h3>${esc(p.name)}</h3><p>Состояние тканей: ${Math.round(p.health)}%. ${
+        return `<div class="medical-layout"><div class="body-scan"><div class="eyebrow">БИОМЕТРИЯ / LIVE</div><div class="body-figure">${h.parts.map((p, i) => button(`<span>${Math.round(p.health)}%</span>`, "body", String(i), false, `body-part part-${i} ${this.medicalPart === i ? "active" : ""} ${p.health < 70 ? "injured" : ""}`)).join("")}</div><div class="body-caption">Нажмите на часть тела</div>${this.gauge("КРОВЬ", h.blood, 100, "#ed9296")}${this.gauge("СОЗНАНИЕ", h.consciousness, 100, "#a1d5cb")}<p class="muted">Боль ${Math.round(h.pain)} · Радиация ${Math.round(h.radiation)}<br>${h.stimulant > 0 ? `Стимулятор: ${Math.ceil(h.stimulant)} с<br>` : ""}Температура ${h.temperature.toFixed(1)} °C · Сытость ${Math.round(h.hunger)}%</p></div><div><div class="section-intro"><h3>${esc(p.name)}</h3><p>Состояние тканей: ${Math.round(p.health)}%. ${
           Object.keys(p.wounds).length
             ? Object.entries(p.wounds)
                 .map(([w, n]) => `${names[w]} ${Math.ceil(n!)}`)
@@ -251,7 +302,7 @@ export class Interface {
           )
           .join(
             "",
-          )}</div>${s.mode === "station" ? `<div class="section-intro"><h3>Обслуживание и верфь</h3></div>${button("Ремонт и заправка · ₡ 180", "service", "", s.credits < 180)}<div class="list">${ships.map((ship) => `<div class="list-row"><div><strong>${ship.name}</strong><p>Корпус ${ship.hull} · Скорость ${ship.speed} · Груз ${ship.cargo}</p></div>${button(s.ship.class === ship.id ? "Текущий" : `Купить · ₡ ${ship.cost}`, "buyShip", ship.id, s.ship.class === ship.id || s.credits < ship.cost)}</div>`).join("")}</div>` : ""}<div class="section-intro"><h3>Персонализация</h3></div><form id="customize-form" class="settings-grid"><label>Название корабля<input id="ship-name" maxlength="40" value="${esc(s.ship.name)}"/></label><label>Основной цвет<input id="ship-color" type="color" value="${esc(s.ship.color)}"/></label><label>Акцент<input id="ship-accent" type="color" value="${esc(s.ship.accent)}"/></label>${button("Применить", "customize")}</form>`;
+          )}</div>${s.mode === "station" ? `<div class="section-intro"><h3>Обслуживание и верфь</h3></div>${button("Ремонт и заправка · ₡ 180", "service", "", s.credits < 180)}<div class="list">${ships.map((ship) => `<div class="list-row"><div><strong>${ship.name}</strong><p>Корпус ${ship.hull} · Скорость ${ship.speed} · Груз ${ship.cargo}</p></div>${button(s.ship.class === ship.id ? "Текущий" : `Купить · ₡ ${ship.cost}`, "buyShip", ship.id, s.ship.class === ship.id || s.credits < ship.cost || weight(s) > shipStats({ ...s, ship: { ...s.ship, class: ship.id } }).cargo)}</div>`).join("")}</div>` : ""}<div class="section-intro"><h3>Персонализация</h3></div><form id="customize-form" class="settings-grid"><label>Название корабля<input id="ship-name" maxlength="40" value="${esc(s.ship.name)}"/></label><label>Основной цвет<input id="ship-color" type="color" value="${esc(s.ship.color)}"/></label><label>Акцент<input id="ship-accent" type="color" value="${esc(s.ship.accent)}"/></label>${button("Применить", "customize")}</form>`;
       case "galaxy": {
         const g = generateGalaxy(s.seed);
         const selected =
@@ -266,12 +317,19 @@ export class Interface {
           })
           .join(
             "",
-          )}${g.map((x) => (s.discovered.includes(x.id) ? `<g role="button" tabindex="0" data-system="${x.id}"><circle cx="${x.x}" cy="${x.y}" r="25" fill="transparent"/><circle cx="${x.x}" cy="${x.y}" r="${x.id === s.system ? 12 : 7}" fill="${x.color}"/><circle cx="${x.x}" cy="${x.y}" r="${x.id === this.selectedSystem ? 22 : x.id === s.system ? 19 : 14}" fill="none" stroke="${x.id === s.system ? "#80dde1" : "#526677"}"/><text x="${x.x}" y="${x.y + 40}" text-anchor="middle">${esc(x.name)}${x.secret ? " ◈" : ""}</text></g>` : `<text x="${x.x}" y="${x.y}" fill="#344858" text-anchor="middle">?</text>`)).join("")}</svg></div><div class="map-detail"><div><h3>${esc(selected.name)}</h3><p>${regions[selected.region]} · Опасность ${selected.region + 1}/5 · ${selected.contacts.filter((c) => c.kind === "planet").length} планет</p></div>${button(selected.id === s.system ? "Вы здесь" : `Гиперпереход → ${selected.name}`, "jump", String(selected.id), selected.id === s.system || s.mode !== "space" || !s.discovered.includes(selected.id), "primary")}</div><div class="section-intro"><h3>Контакты текущей системы</h3><p>Выбор контакта включает автопилот и закрывает карту.</p></div><div class="contact-grid">${contacts(
+          )}${g.map((x) => (s.discovered.includes(x.id) ? `<g role="button" tabindex="0" data-system="${x.id}"><circle cx="${x.x}" cy="${x.y}" r="25" fill="transparent"/><circle cx="${x.x}" cy="${x.y}" r="${x.id === s.system ? 12 : 7}" fill="${x.color}"/><circle cx="${x.x}" cy="${x.y}" r="${x.id === this.selectedSystem ? 22 : x.id === s.system ? 19 : 14}" fill="none" stroke="${x.id === s.system ? "#80dde1" : "#526677"}"/><text x="${x.x}" y="${x.y + 40}" text-anchor="middle">${esc(x.name)}${x.secret ? " ◈" : ""}</text></g>` : `<text x="${x.x}" y="${x.y}" fill="#344858" text-anchor="middle">?</text>`)).join("")}${this.missionMap(s)}</svg></div><div class="map-detail"><div><h3>${esc(selected.name)}</h3><p>${regions[selected.region]} · Опасность ${selected.region + 1}/5 · ${selected.contacts.filter((c) => c.kind === "planet").length} планет</p></div>${button(selected.id === s.system ? "Вы здесь" : `Гиперпереход → ${selected.name}`, "jump", String(selected.id), selected.id === s.system || s.mode !== "space" || !s.discovered.includes(selected.id), "primary")}</div><div class="section-intro"><h3>Контакты текущей системы</h3><p>Выбор контакта включает автопилот и закрывает карту.</p></div><div class="contact-grid">${contacts(
           s,
         )
           .map((c) =>
             button(
-              `<span>${c.kind === "planet" ? "◉" : c.kind === "station" ? "⊕" : "◇"} ${s.scanned.includes(c.id) ? esc(c.name) : "? Контакт"}</span><small>${Math.round(Math.hypot(c.x - s.x, c.y - s.y))} м${c.kind === "planet" && s.scanned.includes(c.id) ? " · " + biomes[c.biome].name : ""}</small>`,
+              `<span>${c.kind === "planet" ? "◉" : c.kind === "station" ? "⊕" : "◇"} ${
+                s.contracts.some((q) => {
+                  const t = missionTarget(q);
+                  return t?.system === s.system && t.location === c.id;
+                })
+                  ? "◆ "
+                  : ""
+              }${s.scanned.includes(c.id) ? esc(c.name) : "? Контакт"}</span><small>${Math.round(Math.hypot(c.x - s.x, c.y - s.y))} м${c.kind === "planet" && s.scanned.includes(c.id) ? " · " + biomes[c.biome].name : ""}</small>`,
               "navigate",
               c.id,
               s.mode !== "space",
@@ -280,17 +338,7 @@ export class Interface {
           .join("")}</div>`;
       }
       case "quests":
-        return `<div class="story-card"><div class="eyebrow">ГЛАВА 0${Math.min(s.chapter + 1, 5)} / ${s.bosses.length} ИЗ 5 СТРАЖЕЙ</div><h3>${chapters[Math.min(s.chapter, 4)].name}</h3><p>${chapters[Math.min(s.chapter, 4)].text}</p><div class="story-steps"><span class="${s.intro >= 4 ? "done" : ""}">✓ Восстановить корабль</span><span class="${s.docked ? "done" : ""}">✓ Посетить станцию</span><span class="${s.evidence.includes(s.chapter) || s.chapter >= 5 ? "done" : ""}">✓ Найти ключ в руинах</span></div>${s.chapter < 5 ? button(`Вызвать стража: ${chapters[s.chapter].boss}`, "boss", "", !s.evidence.includes(s.chapter) || s.mode !== "space" || sys.region !== s.chapter || s.enemies.some((e) => e.boss), "primary") : s.ending ? `<p class="ending-text">${esc(s.codex[s.codex.length - 1])}</p>${button("Продолжить исследование", "close")}` : `<h3>Последний выбор</h3><p>Сеть хранит миллионы сознаний. Ваше решение определит их судьбу.</p><div class="ending-choices">${button("Уничтожить сеть", "ending", "destroy")}${button("Возглавить Хор", "ending", "control")}${button("Передать колонистам", "ending", "colonists")}</div>`}</div><div class="section-intro"><h3>Контракты</h3><p>Принимайте и сдавайте контракты в портах. Доставка и ремонт расходуют указанные припасы при сдаче.</p></div><div class="list">${s.contracts.map((q) => `<div class="list-row"><div><strong>${esc(q.title)} ${q.complete ? "✓" : ""}</strong><p>${q.item ? `${items[q.item]?.name}: ${s.inventory[q.item] ?? 0}/${q.target}` : `Прогресс: ${q.progress}/${q.target}`} · Награда ₡ ${q.reward}</p></div>${button(q.complete ? "Сдано" : "Сдать", "claim", q.id, q.complete || s.mode !== "station" || (q.item ? (s.inventory[q.item] ?? 0) < q.target : q.progress < q.target))}</div>`).join("") || '<p class="muted">Активных контрактов нет.</p>'}${
-          s.mode === "station"
-            ? contractOffers(s)
-                .filter((q) => !s.contracts.some((c) => c.id === q.id))
-                .map(
-                  (q) =>
-                    `<div class="list-row"><div><strong>${q.title}</strong><p>${q.item ? items[q.item]?.name + " ×" + q.target : q.type === "hunt" ? "Уничтожить 2 корабля" : "Сканировать 3 новых контакта"} · ₡ ${q.reward}</p></div>${button("Принять", "accept", q.id)}</div>`,
-                )
-                .join("")
-            : ""
-        }</div><div class="section-intro"><h3>Репутация</h3></div><div class="reputation-grid">${factions.map((f, i) => `<div>${f}<strong class="${s.reputation[i] < 0 ? "negative" : "positive"}">${s.reputation[i] > 0 ? "+" : ""}${s.reputation[i]}</strong></div>`).join("")}</div>`;
+        return `<div class="story-card"><div class="eyebrow">ГЛАВА 0${Math.min(s.chapter + 1, 5)} / ${s.bosses.length} ИЗ 5 СТРАЖЕЙ</div><h3>${chapters[Math.min(s.chapter, 4)].name}</h3><p>${chapters[Math.min(s.chapter, 4)].text}</p><div class="story-steps"><span class="${s.intro >= 4 ? "done" : ""}">✓ Восстановить корабль</span><span class="${s.docked ? "done" : ""}">✓ Посетить станцию</span><span class="${s.evidence.includes(s.chapter) || s.chapter >= 5 ? "done" : ""}">✓ Найти ключ в руинах</span></div>${s.chapter < 5 ? button(`Вызвать стража: ${chapters[s.chapter].boss}`, "boss", "", !s.evidence.includes(s.chapter) || s.mode !== "space" || sys.region !== s.chapter || s.enemies.some((e) => e.boss), "primary") : s.ending ? `<p class="ending-text">${esc(s.codex[s.codex.length - 1])}</p>${button("Продолжить исследование", "close")}` : `<h3>Последний выбор</h3><p>Сеть хранит миллионы сознаний. Ваше решение определит их судьбу.</p><div class="ending-choices">${button("Уничтожить сеть", "ending", "destroy")}${button("Возглавить Хор", "ending", "control")}${button("Передать колонистам", "ending", "colonists")}</div>`}</div>${this.contractsMenu(s)}`;
       case "tech":
         return `<div class="section-intro"><h3>Дерево технологий / ${s.upgrades.length} из ${upgrades.length}</h3><p>Покупка и установка доступны на станциях. Ветви открываются последовательно; дальние технологии требуют победы над стражами.</p></div>${[
           ...new Set(upgrades.map((u) => u.category)),
@@ -313,13 +361,10 @@ export class Interface {
               `<article class="recipe-card"><div class="eyebrow">${r.station === "medbay" ? "МЕДОТСЕК" : "ФАБРИКАТОР"}</div><h4>${items[r.id].name} ×${r.amount}</h4><p>${Object.entries(
                 r.cost,
               )
-                .map(
-                  ([id, n]) =>
-                    `${items[id].name}: ${s.inventory[id] ?? 0}/${n}`,
-                )
+                .map(([id, n]) => `${items[id].name}: ${quantity(s, id)}/${n}`)
                 .join(
                   " · ",
-                )}</p>${button("Создать", "craft", r.id, (!has(s, "workbench") && !["station", "interior"].includes(s.mode)) || Object.entries(r.cost).some(([id, n]) => (s.inventory[id] ?? 0) < n))}</article>`,
+                )}</p>${button("Создать", "craft", r.id, (!has(s, "workbench") && !["station", "interior"].includes(s.mode)) || Object.entries(r.cost).some(([id, n]) => quantity(s, id) < n))}</article>`,
           )
           .join("")}</div>`;
       case "trade":
@@ -328,7 +373,7 @@ export class Interface {
         )
           .map(
             ([id, i]) =>
-              `<div class="trade-row"><span class="trade-icon" style="color:${i.color}">${i.kind === "resource" ? "⬡" : i.kind === "medical" ? "✚" : "▣"}</span><div><strong>${i.name}</strong><small>В грузовом отсеке: ${s.inventory[id] ?? 0}</small></div>${button(`+1 · ₡ ${price(s, id, false, faction)}`, "buy", id, s.mode !== "station" || s.credits < price(s, id, false, faction))}${button(`−1 · ₡ ${price(s, id, true, faction)}`, "sell", id, s.mode !== "station" || !s.inventory[id])}</div>`,
+              `<div class="trade-row"><span class="trade-icon" style="color:${i.color}">${i.kind === "resource" ? "⬡" : i.kind === "medical" ? "✚" : "▣"}</span><div><strong>${i.name}</strong><small>Доступно: ${quantity(s, id)}</small></div>${button(`+1 · ₡ ${price(s, id, false, faction)}`, "buy", id, s.mode !== "station" || s.credits < price(s, id, false, faction))}${button(`−1 · ₡ ${price(s, id, true, faction)}`, "sell", id, s.mode !== "station" || !quantity(s, id))}</div>`,
           )
           .join("")}</div>`;
       case "codex":

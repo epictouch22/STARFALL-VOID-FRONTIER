@@ -66,7 +66,7 @@ it("migrates a version 1 published save while preserving all existing progress",
       payload,
     }),
   );
-  expect(migrated.version).toBe(2);
+  expect(migrated.version).toBe(3);
   expect(migrated.credits).toBe(1234);
   expect(migrated.slot).toBe(2);
   expect(migrated.pack).toEqual({});
@@ -142,6 +142,8 @@ it("derelict crew can be defeated by projectiles before salvage, once only", () 
   }
   expect(s.mode).toBe("derelict");
   expect(s.enemies).toHaveLength(0);
+  for (let i = 0; i < 150; i++)
+    tick(s, { ...idle(), target: { x: 0, y: 0 } }, 1 / 60);
   expect(salvageBoard(s)).toBe(true);
   const credits = s.credits;
   expect(salvageBoard(s)).toBe(false);

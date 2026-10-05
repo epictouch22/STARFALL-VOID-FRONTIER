@@ -31,7 +31,9 @@ import {
   craft,
   buyUpgrade,
   buyShip,
-  contractOffers,
+  acceptContract,
+  cancelContract,
+  missionTarget,
   claimContract,
 } from "./core/economy";
 import { treat } from "./core/medicine";
@@ -398,16 +400,32 @@ function action(name: string, param = "") {
       }
       break;
     case "accept": {
-      const q = contractOffers(state).find((q) => q.id === param);
-      if (
-        q &&
-        state.mode === "station" &&
-        !state.contracts.some((c) => c.id === param)
-      ) {
-        state.contracts.push(q);
-        ui.toast("Контракт принят");
+      ui.toast(
+        acceptContract(state, param)
+          ? state.logs[0]
+          : "Недостаточно места для контрактного груза.",
+      );
+      persist();
+      break;
+    }
+    case "cancelContract":
+      if (cancelContract(state, param)) {
+        ui.toast(state.logs[0]);
+        persist();
       }
       break;
+    case "missionRoute": {
+      const q = state.contracts.find((q) => q.id === param);
+      const target = q && missionTarget(q);
+      if (target) {
+        if (target.system === state.system && state.mode === "space")
+          navigate(target.location);
+        else {
+          ui.selectedSystem = target.system;
+          open("galaxy");
+        }
+      }
+      return;
     }
     case "claim":
       ui.toast(
@@ -415,6 +433,7 @@ function action(name: string, param = "") {
           ? "Контракт сдан. Награда получена."
           : "Условия контракта ещё не выполнены.",
       );
+      persist();
       break;
     case "boss":
       if (launchBoss(state)) {

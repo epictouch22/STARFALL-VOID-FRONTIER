@@ -49,7 +49,10 @@ export function treat(s: State, id: string, part: number) {
     h.parts.forEach((p) => delete p.wounds.radiation);
   }
   if (id === "antidote") h.parts.forEach((p) => delete p.wounds.toxin);
-  if (id === "stimulant") h.consciousness = Math.min(100, h.consciousness + 65);
+  if (id === "stimulant") {
+    h.stimulant = 60;
+    h.consciousness = Math.min(100, h.consciousness + 65);
+  }
   return true;
 }
 export function medicalTick(s: State, dt: number) {
@@ -61,9 +64,15 @@ export function medicalTick(s: State, dt: number) {
   h.blood = Math.max(0, h.blood - bleed * 0.002 * dt);
   h.pain = Math.max(0, h.pain - dt * 0.03);
   h.hunger = Math.max(0, h.hunger - dt * 0.014);
+  h.stimulant = Math.max(0, h.stimulant - dt);
   h.consciousness = Math.max(
     0,
-    Math.min(100, Math.min(h.blood * 1.7, h.oxygen * 5) - h.pain * 0.15),
+    Math.min(
+      100,
+      Math.min(h.blood * 1.7, h.oxygen * 5) -
+        h.pain * 0.15 +
+        (h.stimulant > 0 ? 65 : 0),
+    ),
   );
   if (h.radiation > 30)
     h.parts[1].health = Math.max(

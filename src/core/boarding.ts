@@ -1,6 +1,7 @@
 import type { State } from "./types";
 import { addItem, consume, log, shipStats } from "./state";
 import { hash, random } from "../world/galaxy";
+import { rescueCrew } from "./economy";
 export function boardDerelict(s: State, id: string) {
   s.orbit = { x: s.x, y: s.y, angle: s.angle, active: true };
   s.mode = "derelict";
@@ -60,22 +61,24 @@ export function externalRepair(s: State) {
   return true;
 }
 export function salvageBoard(s: State) {
+  if (s.mode !== "derelict" || Math.hypot(s.x, s.y) > 100) return false;
   if (s.enemies.length) {
     log(s, "Сначала нейтрализуйте охрану терминала.");
     return false;
   }
+  const rescued = rescueCrew(s);
   const key = s.location + "-salvaged";
   if (s.depleted[key]) {
-    log(s, "Груз уже извлечён.");
-    return false;
+    if (!rescued) log(s, "Груз уже извлечён.");
+    return rescued;
   }
   if (!addItem(s, "exo", 2)) {
-    log(s, "Освободите место в грузовом отсеке.");
-    return false;
+    if (!rescued) log(s, "Освободите место в контейнере скафандра.");
+    return rescued;
   }
   addItem(s, "parts", 3);
   s.credits += 200;
   s.depleted[key] = 1;
-  log(s, "Бортовой журнал и груз спасены. +200 кредитов.");
+  if (!rescued) log(s, "Бортовой журнал и груз спасены. +200 кредитов.");
   return true;
 }

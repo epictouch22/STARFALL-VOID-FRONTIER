@@ -60,6 +60,19 @@ for (const [name, browserType, options] of [
       .click();
     await page.locator('[data-action="accept"]').first().click();
     await page
+      .locator('[data-action="accept"][data-param="0-delivery"]')
+      .click();
+    await page
+      .locator('[data-action="accept"][data-param="0-passenger"]')
+      .click();
+    if (
+      await page
+        .locator('[data-action="claim"][data-param="0-delivery"]')
+        .isEnabled()
+    )
+      throw new Error("Delivery can be claimed at origin");
+    await page.screenshot({ path: `test-results/${name}-missions.png` });
+    await page
       .locator('.menu-tabs [data-action="panel"][data-param="settings"]')
       .click();
     await page.locator('#modal [data-action="save"]').click();
@@ -70,7 +83,8 @@ for (const [name, browserType, options] of [
     if (
       state.intro !== 4 ||
       state.mode !== "station" ||
-      state.contracts.length !== 1
+      state.contracts.length !== 3 ||
+      state.version !== 3
     )
       throw new Error("Saved progress mismatch");
     await page.reload({ waitUntil: "networkidle" });
@@ -84,6 +98,50 @@ for (const [name, browserType, options] of [
       .click();
     await page.locator('.menu-footer [data-action="close"]').click();
     await page.locator("#interact-button").click();
+    // Follow the real mission route after save/reload and return to the campaign system.
+    // The browser test never writes save data or invokes debug actions.
+    await page.locator('.quick-nav [data-param="quests"]').click();
+    await page
+      .locator('[data-action="missionRoute"][data-param="0-delivery"]')
+      .click();
+    if (!(await page.locator(".mission-map-marker").count()))
+      throw new Error("Missing mission route marker");
+    await page.locator('[data-action="jump"][data-param="1"]').click();
+    await page.locator('.quick-nav [data-param="galaxy"]').click();
+    await page.locator('[data-action="navigate"][data-param="1-s"]').click();
+    await page.waitForTimeout(6500);
+    await page.locator("#interact-button").click();
+    await page.locator('.quick-nav [data-param="quests"]').click();
+    await page
+      .locator('[data-action="claim"][data-param="0-delivery"]')
+      .click();
+    await page
+      .locator('[data-action="claim"][data-param="0-passenger"]')
+      .click();
+    if (
+      await page
+        .locator('[data-action="claim"][data-param="0-delivery"]')
+        .isEnabled()
+    )
+      throw new Error("Duplicate delivery reward available");
+    await page.screenshot({ path: `test-results/${name}-delivery.png` });
+    await page.locator('.menu-footer [data-action="close"]').click();
+    await page.locator('.header-actions [data-action="save"]').click();
+    const delivery = await page.evaluate(() =>
+      JSON.parse(
+        JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
+      ),
+    );
+    if (
+      !delivery.contracts
+        .filter((q) => ["delivery", "passenger"].includes(q.type))
+        .every((q) => q.complete && q.mission.stage === "done")
+    )
+      throw new Error("Mission state did not persist");
+    await page.locator("#interact-button").click();
+    await page.locator('.quick-nav [data-param="galaxy"]').click();
+    await page.locator('[data-system="0"]').click();
+    await page.locator('[data-action="jump"][data-param="0"]').click();
     await page.locator('.quick-nav [data-param="galaxy"]').click();
     await page.locator('[data-action="navigate"][data-param="0-p0"]').click();
     await page.waitForTimeout(7500);
@@ -96,14 +154,12 @@ for (const [name, browserType, options] of [
     // Navigate using the actual scene coordinates and canvas scale, then interact.
     const size = page.viewportSize(),
       scale = size.width < 700 ? 0.58 : 0.85;
-    await page
-      .locator("#world")
-      .click({
-        position: {
-          x: size.width / 2 + 320 * scale,
-          y: size.height / 2 - 200 * scale,
-        },
-      });
+    await page.locator("#world").click({
+      position: {
+        x: size.width / 2 + 320 * scale,
+        y: size.height / 2 - 200 * scale,
+      },
+    });
     await page.waitForTimeout(3400);
     await page.locator("#interact-button").click();
     await page.locator('.header-actions [data-action="save"]').click();
@@ -173,7 +229,7 @@ for (const [name, browserType, options] of [
     await page.screenshot({ path: `test-results/${name}-boss-victory.png` });
     if (errors.length) throw new Error(errors.join("\n"));
     console.log(
-      `${name}: PASS repair → flight → dock → trade → contract → save/reload → upgrade → landing → ruin → takeoff → boss combat`,
+      `${name}: PASS repair → flight → dock → trade → sealed cargo/passengers → save/reload → upgrade → cross-system delivery → landing → ruin → takeoff → boss combat`,
     );
   } catch (e) {
     failures.push(`${name}: ${e.message}`);

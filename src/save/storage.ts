@@ -1,18 +1,56 @@
-import type { State } from "../core/types";
+import type { State, ContractMission, MissionPort } from "../core/types";
 import { newGame } from "../core/state";
 import { items, upgrades, ships } from "../data/catalog";
-import { hash } from "../world/galaxy";
+import { hash, generateGalaxy } from "../world/galaxy";
 const key = (slot: number) => `starfall-save-v1-${slot}`;
 export function validateState(value: unknown): value is State {
+  try {
+    return validate(value);
+  } catch {
+    return false;
+  }
+}
+function validate(value: unknown): value is State {
   if (!value || typeof value !== "object") return false;
   const s = value as State,
     template = newGame();
-  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 2)
+  if (Object.keys(template).some((k) => !(k in s)) || s.version !== 3)
     return false;
   const validNum = (n: unknown, min = 0, max = 1e9) =>
     typeof n === "number" && Number.isFinite(n) && n >= min && n <= max;
   const str = (n: unknown, max = 500) =>
     typeof n === "string" && n.length <= max;
+  const validPort = (p: MissionPort | null, kinds: string[]) =>
+    !!p &&
+    Number.isInteger(p.system) &&
+    validNum(p.system, 0, 24) &&
+    generateGalaxy(s.seed)[p.system].contacts.some(
+      (c) => c.id === p.location && kinds.includes(c.kind),
+    );
+  const validMission = (
+    m: ContractMission | null,
+    complete: boolean,
+    type: string,
+  ) => {
+    if (m === null) return !["passenger", "rescue"].includes(type);
+    return (
+      !!m &&
+      ["delivery", "passenger", "rescue"].includes(type) &&
+      validPort(m.origin, ["station", "outpost"]) &&
+      validPort(m.destination, ["station", "outpost"]) &&
+      (type === "rescue"
+        ? validPort(m.pickup, ["derelict"])
+        : m.pickup === null) &&
+      ["pickup", "delivery", "done", "cancelled"].includes(m.stage) &&
+      (m.stage !== "pickup" || type === "rescue") &&
+      complete === (m.stage === "done") &&
+      !!m.manifest &&
+      str(m.manifest.label, 150) &&
+      validNum(m.manifest.weight, 0.1, 1000) &&
+      validNum(m.manifest.slots, 1, 40) &&
+      Number.isInteger(m.manifest.slots)
+    );
+  };
   if (
     !s.pack ||
     typeof s.pack !== "object" ||
@@ -161,6 +199,7 @@ export function validateState(value: unknown): value is State {
     ].every((n) => validNum(n, -100, 1000))
   )
     return false;
+  if (!validNum(s.health.stimulant, 0, 60)) return false;
   for (const field of ["discovered", "bosses", "evidence"] as const)
     if (
       !Array.isArray(s[field]) ||
@@ -203,16 +242,27 @@ export function validateState(value: unknown): value is State {
   if (
     !Array.isArray(s.contracts) ||
     s.contracts.length > 300 ||
+    new Set(s.contracts.map((q) => q.id)).size !== s.contracts.length ||
     s.contracts.some(
       (q) =>
         !str(q.id) ||
         !str(q.title) ||
-        !["mining", "hunt", "survey", "delivery", "salvage", "repair"].includes(
-          q.type,
-        ) ||
+        ![
+          "mining",
+          "hunt",
+          "survey",
+          "delivery",
+          "salvage",
+          "repair",
+          "passenger",
+          "rescue",
+        ].includes(q.type) ||
         !str(q.item) ||
+        (q.item !== "" && !items[q.item]) ||
         ![q.target, q.progress, q.reward].every((n) => validNum(n)) ||
         !validNum(q.faction, 0, 4) ||
+        !Number.isInteger(q.faction) ||
+        !validMission(q.mission, q.complete, q.type) ||
         typeof q.complete !== "boolean",
     )
   )
@@ -272,7 +322,7 @@ export function encode(s: State) {
   const payload = JSON.stringify(s);
   return JSON.stringify({
     format: "STARFALL",
-    saveVersion: 2,
+    saveVersion: s.version,
     checksum: hash(payload),
     payload,
   });
@@ -282,7 +332,7 @@ export function decode(raw: string): State {
   const e = JSON.parse(raw);
   if (
     e.format !== "STARFALL" ||
-    ![1, 2].includes(e.saveVersion) ||
+    ![1, 2, 3].includes(e.saveVersion) ||
     typeof e.payload !== "string" ||
     hash(e.payload) !== e.checksum
   )
@@ -299,16 +349,28 @@ export function migrate(value: unknown): unknown {
   if (!value || typeof value !== "object")
     throw new Error("Некорректное сохранение");
   const old = value as Record<string, unknown>;
-  if (old.version === 2) return old;
+  if (old.version === 3) return old;
+  if (old.version === 2)
+    return {
+      ...old,
+      version: 3,
+      health:
+        old.health && typeof old.health === "object"
+          ? { ...old.health, stimulant: 0 }
+          : old.health,
+      contracts: Array.isArray(old.contracts)
+        ? old.contracts.map((q) => ({ ...q, mission: null }))
+        : old.contracts,
+    };
   if (old.version === 1) {
     const defaults = newGame();
-    return {
+    return migrate({
       ...old,
       version: 2,
       pack: {},
       quickSlots: defaults.quickSlots,
       avatar: defaults.avatar,
-    };
+    });
   }
   throw new Error("Эта версия сохранения не поддерживается");
 }

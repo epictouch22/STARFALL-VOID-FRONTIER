@@ -10,6 +10,7 @@ import {
 } from "../world/galaxy";
 import { currentPlanet, stationPoints } from "../core/actions";
 import { has } from "../core/state";
+import { missionTarget } from "../core/economy";
 export class Renderer {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -109,7 +110,9 @@ export class Renderer {
     this.scale = indoor
       ? Math.min(1.15, (w - 30) / 540, (h - 160) / 620)
       : w < 700
-        ? s.mode === 'surface' ? 0.58 : 0.42
+        ? s.mode === "surface"
+          ? 0.58
+          : 0.42
         : 0.85;
     this.cx = indoor ? 0 : s.x;
     this.cy = indoor ? 30 : s.y;
@@ -308,6 +311,24 @@ export class Renderer {
         c.restore();
       }
       if (playing) {
+        const mission = s.contracts.find((q) => {
+          const target = missionTarget(q);
+          return target?.system === s.system && target.location === obj.id;
+        });
+        if (mission) {
+          c.strokeStyle = "#ffb66b";
+          c.lineWidth = 2;
+          c.beginPath();
+          c.arc(obj.x, obj.y, obj.radius + 18, 0, Math.PI * 2);
+          c.stroke();
+          this.label(
+            "◆ " + mission.title,
+            obj.x,
+            obj.y - obj.radius - 30,
+            "#ffb66b",
+            12,
+          );
+        }
         const label = known
           ? obj.name
           : "? " + (obj.kind === "planet" ? "Планета" : "Контакт");

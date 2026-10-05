@@ -8,6 +8,18 @@ export const inventoryWeight = (pool: Record<string, number>) =>
   );
 export const inventorySlots = (pool: Record<string, number>) =>
   Object.values(pool).reduce((n, q) => n + Math.ceil(q / 99), 0);
+export function reservedCargo(s: State) {
+  return s.contracts.reduce(
+    (total, q) => {
+      if (q.mission && ["pickup", "delivery"].includes(q.mission.stage)) {
+        total.weight += q.mission.manifest.weight;
+        total.slots += q.mission.manifest.slots;
+      }
+      return total;
+    },
+    { weight: 0, slots: 0 },
+  );
+}
 export function transfer(s: State, id: string, toPack: boolean, n = 1) {
   if (
     !["space", "interior", "station"].includes(s.mode) ||
@@ -20,9 +32,11 @@ export function transfer(s: State, id: string, toPack: boolean, n = 1) {
     dest = toPack ? s.pack : s.inventory;
   if ((source[id] ?? 0) < n) return false;
   const next = { ...dest, [id]: (dest[id] ?? 0) + n };
+  const reserved = toPack ? { weight: 0, slots: 0 } : reservedCargo(s);
   if (
-    inventoryWeight(next) > (toPack ? 35 : shipStats(s).cargo) ||
-    inventorySlots(next) > (toPack ? 12 : 40)
+    inventoryWeight(next) + reserved.weight >
+      (toPack ? 35 : shipStats(s).cargo) ||
+    inventorySlots(next) + reserved.slots > (toPack ? 12 : 40)
   )
     return false;
   source[id] -= n;

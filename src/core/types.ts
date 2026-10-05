@@ -24,6 +24,7 @@ export type Health = {
   temperature: number;
   consciousness: number;
   hunger: number;
+  stimulant: number;
 };
 export type Module = {
   id: string;
@@ -61,9 +62,25 @@ export type Projectile = {
   owner: "player" | "enemy";
   weapon: string;
 };
+export type MissionPort = { system: number; location: string };
+export type ContractMission = {
+  origin: MissionPort;
+  destination: MissionPort;
+  pickup: MissionPort | null;
+  stage: "pickup" | "delivery" | "done" | "cancelled";
+  manifest: { label: string; weight: number; slots: number };
+};
 export type Contract = {
   id: string;
-  type: "mining" | "hunt" | "survey" | "delivery" | "salvage" | "repair";
+  type:
+    | "mining"
+    | "hunt"
+    | "survey"
+    | "delivery"
+    | "salvage"
+    | "repair"
+    | "passenger"
+    | "rescue";
   title: string;
   item: string;
   target: number;
@@ -71,9 +88,10 @@ export type Contract = {
   reward: number;
   faction: number;
   complete: boolean;
+  mission: ContractMission | null;
 };
 export type State = {
-  version: 2;
+  version: 3;
   pack: Record<string, number>;
   quickSlots: string[];
   avatar: {

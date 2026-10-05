@@ -7,7 +7,7 @@
 - `src/scenes`: drawing of space, planet surfaces and compartment interiors. Only current system is simulated.
 - `src/input`: keyboard and pointer/touch controls with cancellation handling.
 - `src/ui`: menus and telemetry, event-driven updates with limited HUD frequency.
-- `src/save`: format 2 with explicit format-1 migration; three validated, checksum-protected localStorage slots with last-good backups and JSON import/export. Storage keys retain `v1` for browser compatibility.
+- `src/save`: format 3 with explicit format-1/format-2 migrations; three validated, checksum-protected localStorage slots with last-good backups and JSON import/export. Storage keys retain `v1` for browser compatibility.
 - `src/audio`: user-gesture-initialized Web Audio synthesis.
 - `tests`: meaningful rules, deterministic generation and campaign progression.
 

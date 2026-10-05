@@ -1719,6 +1719,23 @@ strong {
   gap: 8px;
   margin-bottom: 24px;
 }
+.contract-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mission-map-marker {
+  pointer-events: none;
+}
+@media (max-width: 700px) {
+  .contract-actions {
+    width: 100%;
+  }
+  .contract-actions button {
+    flex: 1;
+    min-height: 44px;
+  }
+}
 #telemetry {
   transform: scale(var(--ui-scale));
   transform-origin: top left;
@@ -1732,7 +1749,15 @@ strong {
     opacity: var(--control-opacity);
   }
 }
-@media(max-width:700px){#radio{top:220px;bottom:auto;width:158px;max-height:82px;overflow:hidden}}
+@media (max-width: 700px) {
+  #radio {
+    top: 220px;
+    bottom: auto;
+    width: 158px;
+    max-height: 82px;
+    overflow: hidden;
+  }
+}
 .supply-row button {
   font-size: 11px;
   min-height: 44px;

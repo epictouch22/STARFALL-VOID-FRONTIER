@@ -1,6 +1,6 @@
 import { ships, upgrades, items } from "../data/catalog";
 import type { State, Health } from "./types";
-import { inventoryWeight, inventorySlots } from "./inventory";
+import { inventoryWeight, inventorySlots, reservedCargo } from "./inventory";
 export function healthy(): Health {
   return {
     parts: [
@@ -18,11 +18,12 @@ export function healthy(): Health {
     temperature: 37,
     consciousness: 100,
     hunger: 100,
+    stimulant: 0,
   };
 }
 export function newGame(seed = "STARFALL", slot = 0, name = "Пилот"): State {
   return {
-    version: 2,
+    version: 3,
     pack: { bandage: 2, oxygen: 1 },
     quickSlots: ["fuel", "oxygen", "food", "ammo"],
     avatar: {
@@ -180,10 +181,7 @@ export function shipStats(s: State) {
   };
 }
 export function weight(s: State) {
-  return Object.entries(s.inventory).reduce(
-    (sum, [id, n]) => sum + (items[id]?.weight ?? 1) * n,
-    0,
-  );
+  return inventoryWeight(s.inventory) + reservedCargo(s).weight;
 }
 export const quantity = (s: State, id: string) =>
   (s.inventory[id] ?? 0) + (s.pack[id] ?? 0);
@@ -196,9 +194,11 @@ export function addItem(
   if (!items[id] || !Number.isInteger(n) || n <= 0) return false;
   const pool = toPack ? s.pack : s.inventory;
   const next = { ...pool, [id]: (pool[id] ?? 0) + n };
+  const reserved = toPack ? { weight: 0, slots: 0 } : reservedCargo(s);
   if (
-    inventoryWeight(next) > (toPack ? 35 : shipStats(s).cargo) ||
-    inventorySlots(next) > (toPack ? 12 : 40)
+    inventoryWeight(next) + reserved.weight >
+      (toPack ? 35 : shipStats(s).cargo) ||
+    inventorySlots(next) + reserved.slots > (toPack ? 12 : 40)
   )
     return false;
   pool[id] = (pool[id] ?? 0) + n;
