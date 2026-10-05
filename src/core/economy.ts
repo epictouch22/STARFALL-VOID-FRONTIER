@@ -112,6 +112,34 @@ export function buyShip(s: State, id: string) {
   log(s, `Вы купили ${ship.name}`);
   return true;
 }
+export function serviceShip(s: State) {
+  if (s.mode !== "station" || s.credits < 180) return false;
+  s.credits -= 180;
+  const stats = shipStats(s);
+  s.ship.hull = stats.hull;
+  s.ship.shield = stats.shield;
+  s.ship.fuel = 100;
+  s.ship.energy = stats.energy;
+  s.ship.ammo += 60;
+  s.ship.modules.forEach((m) => {
+    m.integrity = 100;
+    m.fire = 0;
+    m.breach = false;
+  });
+  log(s, "Корабль обслужен и заправлен");
+  return true;
+}
+export function equipWeapon(s: State, id: string) {
+  if (
+    !["kinetic", "laser", "missile", "rail", "ion", "plasma", "mine"].includes(
+      id,
+    ) ||
+    (id !== "kinetic" && !has(s, id))
+  )
+    return false;
+  s.ship.weapon = id;
+  return true;
+}
 export function contractOffers(s: State): Contract[] {
   const g = generateGalaxy(s.seed);
   const port = g[s.system].contacts.find(

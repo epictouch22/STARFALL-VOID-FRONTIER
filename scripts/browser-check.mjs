@@ -227,9 +227,145 @@ for (const [name, browserType, options] of [
         `First boss combat failed: chapter ${victory.chapter}, mode ${victory.mode}, hull ${victory.ship.hull}`,
       );
     await page.screenshot({ path: `test-results/${name}-boss-victory.png` });
+    const readSaved = async () => {
+      await page.locator('.header-actions [data-action="save"]').click();
+      return page.evaluate(() =>
+        JSON.parse(
+          JSON.parse(localStorage.getItem("starfall-save-v1-0")).payload,
+        ),
+      );
+    };
+    // Complete the remaining four chapters through the production UI.
+    // Saved state is read only to aim the controls and assert results.
+    for (let chapter = 1; chapter < 5; chapter++) {
+      await page.locator('.quick-nav [data-param="galaxy"]').click();
+      await page.locator(`[data-system="${chapter * 5}"]`).click();
+      await page
+        .locator(`[data-action="jump"][data-param="${chapter * 5}"]`)
+        .click();
+      await page.locator('.quick-nav [data-param="galaxy"]').click();
+      await page
+        .locator(`[data-action="navigate"][data-param="${chapter * 5}-s"]`)
+        .click();
+      await page.waitForTimeout(6500);
+      await page.locator("#interact-button").click();
+      if (
+        !(await page.locator("#system-name").innerText()).includes("СТЫКОВКА")
+      )
+        throw new Error(`Chapter ${chapter} docking failed`);
+      await page.locator('.header-actions [data-action="panel"]').click();
+      if (chapter === 1) {
+        await page.locator('.menu-tabs [data-param="quests"]').click();
+        await page
+          .locator('[data-action="claim"][data-param="0-mining"]')
+          .click();
+        await page.locator('.menu-tabs [data-param="tech"]').click();
+        for (const id of [
+          "hull-0",
+          "hull-1",
+          "shield-1",
+          "weapon-0",
+          "weapon-1",
+          "weapon-2",
+        ])
+          await page
+            .locator(`[data-action="upgrade"][data-param="${id}"]`)
+            .click();
+        await page.locator('.menu-tabs [data-param="ship"]').click();
+        await page.locator('[data-action="weapon"][data-param="rail"]').click();
+      }
+      await page.locator('[data-action="service"]').click();
+      await page.locator('.menu-footer [data-action="close"]').click();
+      await page.locator("#interact-button").click();
+      await page.locator('.quick-nav [data-param="galaxy"]').click();
+      await page
+        .locator(`[data-action="navigate"][data-param="${chapter * 5}-p0"]`)
+        .click();
+      await page.waitForTimeout(7500);
+      await page.locator("#interact-button").click();
+      if (
+        !(await page.locator("#system-name").innerText()).includes(
+          "ПОВЕРХНОСТЬ",
+        )
+      )
+        throw new Error(`Chapter ${chapter} landing failed`);
+      await page
+        .locator("#world")
+        .click({
+          position: {
+            x: size.width / 2 + 320 * scale,
+            y: size.height / 2 - 200 * scale,
+          },
+        });
+      await page.waitForTimeout(3400);
+      await page.locator("#interact-button").click();
+      await page.locator('[data-action="board"]').click();
+      await page.waitForTimeout(4200);
+      await page.locator("#interact-button").click();
+      await page.locator('.quick-nav [data-param="quests"]').click();
+      await page.locator('[data-action="boss"]').click();
+      let combat = await readSaved();
+      for (
+        let second = 0;
+        second < 90 && combat.chapter === chapter && combat.mode === "space";
+        second++
+      ) {
+        const enemy = combat.enemies.find((e) => e.boss);
+        if (!enemy) throw new Error(`Missing boss at chapter ${chapter}`);
+        const angle = Math.atan2(enemy.y - combat.y, enemy.x - combat.x);
+        if (name === "iphone-webkit") {
+          const box = await page.locator("#stick-right").boundingBox();
+          await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+          await page.mouse.down();
+          await page.mouse.move(
+            box.x + box.width / 2 + Math.cos(angle) * box.width * 0.42,
+            box.y + box.height / 2 + Math.sin(angle) * box.height * 0.42,
+          );
+          await page.waitForTimeout(1000);
+          await page.mouse.up();
+        } else {
+          await page.mouse.move(
+            size.width / 2 + Math.cos(angle) * 200,
+            size.height / 2 + Math.sin(angle) * 200,
+          );
+          await page.keyboard.down("Space");
+          await page.waitForTimeout(1000);
+          await page.keyboard.up("Space");
+        }
+        combat = await readSaved();
+      }
+      if (combat.chapter !== chapter + 1 || combat.mode !== "space")
+        throw new Error(
+          `Campaign boss ${chapter} failed: hull ${combat.ship.hull}, mode ${combat.mode}`,
+        );
+      console.log(
+        `${name}: chapter ${chapter + 1}/5 passed with earned equipment`,
+      );
+      if (chapter === 2) {
+        await page.reload({ waitUntil: "networkidle" });
+        await page.locator('[data-action="continue"]').click();
+      }
+    }
+    await page.locator('.quick-nav [data-param="quests"]').click();
+    await page
+      .locator('[data-action="ending"][data-param="colonists"]')
+      .click();
+    await page.screenshot({ path: `test-results/${name}-ending.png` });
+    await page.locator('.menu-footer [data-action="close"]').click();
+    const finalState = await readSaved();
+    if (finalState.ending !== "colonists" || finalState.bosses.length !== 5)
+      throw new Error("Ending was not saved");
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator('[data-action="continue"]').click();
+    if (
+      !(await page.locator("#system-name").innerText()).includes(
+        "СВОБОДНЫЙ ПОЛЁТ",
+      )
+    )
+      throw new Error("Free play unavailable after ending reload");
     if (errors.length) throw new Error(errors.join("\n"));
     console.log(
-      `${name}: PASS repair → flight → dock → trade → sealed cargo/passengers → save/reload → upgrade → cross-system delivery → landing → ruin → takeoff → boss combat`,
+      `${name}: PASS New Game → delivery/passengers → save/reload → earned upgrades → five real bosses → saved ending → free play`,
     );
   } catch (e) {
     failures.push(`${name}: ${e.message}`);

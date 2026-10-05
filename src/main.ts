@@ -31,6 +31,8 @@ import {
   craft,
   buyUpgrade,
   buyShip,
+  serviceShip,
+  equipWeapon,
   acceptContract,
   cancelContract,
   missionTarget,
@@ -394,8 +396,7 @@ function action(name: string, param = "") {
       );
       break;
     case "weapon":
-      if (param === "kinetic" || has(state, param)) {
-        state.ship.weapon = param;
+      if (equipWeapon(state, param)) {
         ui.toast("Оружие переключено");
       }
       break;
@@ -450,19 +451,7 @@ function action(name: string, param = "") {
       }
       break;
     case "service":
-      if (state.mode === "station" && state.credits >= 180) {
-        state.credits -= 180;
-        state.ship.hull = shipStats(state).hull;
-        state.ship.fuel = 100;
-        state.ship.energy = shipStats(state).energy;
-        state.ship.ammo += 60;
-        state.ship.modules.forEach((m) => {
-          m.integrity = 100;
-          m.fire = 0;
-          m.breach = false;
-        });
-        ui.toast("Корабль обслужен и заправлен");
-      }
+      if (serviceShip(state)) ui.toast(state.logs[0]);
       break;
     case "clinic":
       if (state.mode === "station" && state.credits >= 120) {

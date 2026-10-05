@@ -96,6 +96,7 @@ describe("cross-system missions", () => {
     expect(acceptContract(s, "0-delivery")).toBe(false);
     expect(s).toEqual(snapshot);
     s.inventory = { bandage: 99 * 40 };
+    s.ship.class = "freighter";
     s.upgrades = ["cargo-0", "cargo-1", "cargo-2", "cargo-3"];
     // A lightweight synthetic stack fixture isolates the slot constraint independently.
     const offer = contractOffers(s).find((q) => q.type === "delivery")!;
@@ -182,6 +183,14 @@ describe("cross-system missions", () => {
     expect(salvageBoard(s)).toBe(true);
     expect(s.contracts[0].mission?.stage).toBe("delivery");
     expect(salvageBoard(s)).toBe(false);
+  });
+  it("does not count boarding guards as ship bounty kills", () => {
+    const s = atPort();
+    acceptContract(s, "0-hunt");
+    boardDerelict(s, "1-c0");
+    s.enemies[0].hp = 0;
+    tick(s, idle(), 1 / 60);
+    expect(s.contracts[0].progress).toBe(0);
   });
   it("offers reachable routes in all 25 systems and remembers the actual outpost of acceptance", () => {
     for (let system = 0; system < 25; system++) {

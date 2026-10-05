@@ -94,6 +94,18 @@ describe("inventory and production", () => {
   });
 });
 describe("damage and medicine", () => {
+  it("adaptive shielding saves shield charge without leaking protected damage into hull", () => {
+    const s = newGame();
+    s.upgrades = ["shield-4"];
+    s.ship.shield = 30;
+    const hull = s.ship.hull;
+    damageShip(s, 20);
+    expect(s.ship.hull).toBe(hull);
+    expect(s.ship.shield).toBe(15);
+    damageShip(s, 30);
+    expect(s.ship.shield).toBe(0);
+    expect(s.ship.hull).toBe(hull - 10);
+  });
   it("shield absorbs hits before hull and module damage", () => {
     const s = newGame();
     s.ship.shield = 40;

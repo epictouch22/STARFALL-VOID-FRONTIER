@@ -13,7 +13,7 @@
 - Fires damage compartments and spread; suppression upgrade works. Capped pooled explosion particles, damage shake and jump/landing transitions honor reduced-effects mode.
 - Mobile flight uses a wider camera and keeps radio messages away from the player, so close-range enemy ships remain visible.
 - Three validated save slots, autosave, JSON import/export and last-good backups. Synthesized audio, settings, medical body diagram, codex.
-- 39 unit/integration tests pass, including actual projectile victories against all five bosses, legacy-save migration and out-of-order intro repairs. Production build passes; JS is about 127 KB before gzip. Dependency audit reports 0 vulnerabilities.
+- 42 unit/integration tests pass, including actual projectile victories against all five bosses, legacy-save migration and out-of-order intro repairs. Production build passes; JS is about 127 KB before gzip. Dependency audit reports 0 vulnerabilities.
 - Chromium and iPhone-sized WebKit passed UI acceptance: introduction → flight → docking → market → contract → save/reload → upgrade → landing → ruin → takeoff → first boss victory. The initial published release also passed live browser checks.
 - GitHub Pages enabled through API, source GitHub Actions. First deployment succeeded. No GitHub settings action is required from the user.
 - Public game: https://epictouch22.github.io/STARFALL-VOID-FRONTIER/. Every main push runs locked install, tests, build, base-path verification and Chromium/WebKit acceptance before deployment. CI stores screenshots.
@@ -22,17 +22,20 @@
 - Fixed reversed reputation sell prices, overloaded ship downsizing, suit quantity buttons, one-frame stimulant and malformed-save validator exceptions.
 - Chromium and iPhone WebKit passed the expanded delivery/passenger route with save/reload, wrong-port rejection and real first-boss combat.
 
+- Earned full-campaign integration test now completes New Game → repairs → paid upgrades → all five projectile bosses → saved ending → free play, with no configured money/health/unlocks.
+- Fixed adaptive shield damage leaking into hull and ground kills incorrectly advancing ship bounties. Station service now recharges the installed shield.
+
 ## IN PROGRESS
 
 - Release 0.2 expands the initial playable campaign; audited coverage and gaps are recorded in QA_AUDIT.md.
 
 ## NEXT
 
-- Validate New Game → all five bosses → ending with earned credits/equipment and real movement/actions, without preconfigured boss health or debug. Fix any progression or combat defects this reveals. Then implement an escort variant on the mission structure.
+- Implement physical escort contracts: a rendered convoy follows the player, can take enemy projectile damage, must be within jump range, persists across reloads, and pays only after surviving arrival at the specified port. Add failure/reward/migration and UI acceptance checks.
 
 ## KNOWN BUGS
 
-- No known blocker in the tested acceptance paths. A full multi-hour playthrough and real iPhone hardware performance have not been verified.
+- No known blocker in the tested acceptance paths. The automated full campaign has been verified; a human multi-hour exploration run and real iPhone hardware performance remain unverified.
 - Planet caves/wrecks are resource nodes rather than separate submaps; terrain has no solid obstacles, varied weather or biome-specific fauna AI yet.
 - Inventory transfers use buttons; drag-and-drop, dropped-item world containers and additional equipment slots remain to implement.
 - Exact-port delivery, passengers and missing-crew rescue are implemented. Escort/evacuation remain absent. The former repair objective is explicitly a port supply requisition, not a physical ship repair mission.
@@ -53,11 +56,11 @@
 ## TEST STATUS
 
 - `npm run typecheck`: PASS.
-- `npm test`: 39 tests PASS.
-- `npm run test:browser`: Chromium and iPhone WebKit PASS, including cross-system delivery/passengers.
-- Full earned five-chapter campaign and physical iPhone testing are not yet verified.
+- `npm test`: 42 tests PASS.
+- `npm run test:browser`: Chromium and iPhone WebKit PASS: New Game, delivery/passengers, reload, earned equipment, all five bosses, ending, reload and free play.
+- Earned five-chapter core campaign: PASS. Full Chromium UI campaign: PASS. Full iPhone WebKit UI campaign: PASS. Physical iPhone hardware remains unverified.
 
 ## BUILD STATUS
 
 - `npm run build`: PASS. `verify-build.mjs`: PASS for JS/CSS under the Pages base.
-- Existing automatic Pages workflow retained; new checkpoint will deploy on push to main.
+- Existing automatic Pages workflow retained; mission checkpoint 431fe62 successfully published by Actions run 37279171439. Every stable main push deploys automatically.

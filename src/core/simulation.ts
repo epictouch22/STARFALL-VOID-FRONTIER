@@ -15,11 +15,9 @@ export type Controls = {
 export function damageShip(s: State, amount: number) {
   if (has(s, "armor")) amount *= 0.7;
   if (has(s, "phase")) amount *= 0.85;
-  const absorbed = Math.min(
-    s.ship.shield,
-    amount * (has(s, "shieldArmor") ? 0.75 : 1),
-  );
-  s.ship.shield -= absorbed;
+  const shieldCost = has(s, "shieldArmor") ? 0.75 : 1;
+  const absorbed = Math.min(amount, s.ship.shield / shieldCost);
+  s.ship.shield -= absorbed * shieldCost;
   amount -= absorbed;
   s.ship.hull = Math.max(0, s.ship.hull - amount);
   if (amount > 0) {
@@ -431,7 +429,7 @@ export function tick(s: State, input: Controls, dt: number) {
       s.credits += e.boss ? 1600 + s.chapter * 550 : 120;
       addItem(s, "iron", e.boss ? 8 : 2);
       s.contracts
-        .filter((q) => q.type === "hunt" && !q.complete)
+        .filter((q) => q.type === "hunt" && !q.complete && s.mode === "space")
         .forEach((q) => q.progress++);
       s.reputation[0] = Math.min(100, s.reputation[0] + 2);
       s.reputation[3] = Math.max(-100, s.reputation[3] - 2);
